@@ -285,3 +285,42 @@ DETAIL:  Key (document_id)=(8) is not present in table "documents".
 2026-05-19 19:28:41 | INFO     | database.operations | 文档已入库: ID=10, 名称=中 华 人 民 共 和 国 国 用 标 准
 2026-05-19 19:28:41 | INFO     | document.chunker | 章节切分: 34个章节
 2026-05-19 19:28:41 | INFO     | document.chunker | 文本分块完成: 60个块
+2026-05-19 19:31:09 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190269_GJB.docx
+2026-05-19 19:31:09 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:31:17 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190277_HJB.docx
+2026-05-19 19:31:17 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:31:24 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:31:26 | INFO     | document.parser | Tesseract OCR 就绪
+2026-05-19 19:31:52 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:31:52 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:32:03 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:32:29 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:32:29 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:32:29 | INFO     | database.operations | 文档已入库: ID=11, 名称=中 华 人 民 共 和 国 国 用 标 准
+2026-05-19 19:32:29 | INFO     | document.chunker | 章节切分: 34个章节
+2026-05-19 19:32:29 | INFO     | document.chunker | 文本分块完成: 60个块
+2026-05-19 19:32:45 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:32:57 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:33:18 | INFO     | embeddings.embedder | 批量嵌入完成: 60个文本 → 60个向量
+2026-05-19 19:33:21 | INFO     | database.operations | 批量插入 60 个向量块
+2026-05-19 19:33:21 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190277_HJB.docx
+2026-05-19 19:33:21 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:33:21 | INFO     | database.operations | 文档已入库: ID=12, 名称=舰船舰载软件质量监督通用要求
+2026-05-19 19:33:21 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:33:21 | INFO     | document.chunker | 文本分块完成: 4个块
+2026-05-19 19:33:23 | INFO     | embeddings.embedder | 批量嵌入完成: 4个文本 → 4个向量
+2026-05-19 19:33:23 | INFO     | database.operations | 批量插入 4 个向量块
+2026-05-19 19:33:23 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190269_GJB.docx
+2026-05-19 19:33:23 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:33:23 | INFO     | database.operations | 文档已入库: ID=13, 名称=军用软件质量监督要求
+2026-05-19 19:33:23 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:33:23 | INFO     | document.chunker | 文本分块完成: 5个块
+2026-05-19 19:33:25 | INFO     | embeddings.embedder | 批量嵌入完成: 5个文本 → 5个向量
+2026-05-19 19:33:25 | INFO     | database.operations | 批量插入 5 个向量块
+2026-05-19 19:34:05 | INFO     | retrieval.hybrid_search | 语义检索: 舰船舰载软件质量监督通用要求有哪些...
+2026-05-19 19:34:06 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 19:34:06 | INFO     | retrieval.hybrid_search | 关键词检索: 舰船舰载软件质量监督通用要求有哪些...
+2026-05-19 19:34:06 | INFO     | retrieval.hybrid_search | RRF融合: 语义20条 + 关键词0条
+2026-05-19 19:34:06 | INFO     | retrieval.reranker | RRF融合: 20条语义 + 0条关键词 → 20条融合结果
+2026-05-19 19:34:06 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回10条结果
+2026-05-19 19:34:09 | INFO     | llm.client | LLM客户端初始化: https://dashscope.aliyuncs.com/compatible-mode/v1

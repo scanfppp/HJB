@@ -94,7 +94,7 @@ function renderMsgs() {
         let html = `<div class="msg ${m.role}"><div class="msg-bubble">`;
         html += isUser ? escHtml(m.content) : mdRender(m.content);
         if (m.sources && m.sources.length) {
-            html += `<div class="msg-sources">📖 ${m.sources.map(s =>
+            html += `<div class="msg-sources"><span class="src-icon"></span> ${m.sources.map(s =>
                 `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
             ).join('；')}</div>`;
         }
@@ -102,6 +102,11 @@ function renderMsgs() {
         return html;
     }).join('');
 
+    scrollDown();
+}
+
+function scrollDown() {
+    const body = document.getElementById('chatBody');
     body.scrollTop = body.scrollHeight;
 }
 
@@ -110,9 +115,32 @@ function addMsg(role, content, sources) {
     renderMsgs();
 }
 
-function updateLast(content) {
-    if (S.msgs.length) S.msgs[S.msgs.length - 1].content = content;
-    renderMsgs();
+function updateLastBubble(content) {
+    // 直接更新最后一条助手消息的DOM，避免全量重渲染导致的闪烁
+    if (!S.msgs.length) return;
+    S.msgs[S.msgs.length - 1].content = content;
+    const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
+    const last = bubbles[bubbles.length - 1];
+    if (last) {
+        last.innerHTML = mdRender(content);
+        scrollDown();
+    }
+}
+
+function updateLastSources(sources) {
+    if (!S.msgs.length) return;
+    S.msgs[S.msgs.length - 1].sources = sources;
+    const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
+    const last = bubbles[bubbles.length - 1];
+    if (last && sources && sources.length) {
+        const srcDiv = document.createElement('div');
+        srcDiv.className = 'msg-sources';
+        srcDiv.innerHTML = '<span class="src-icon"></span> ' + sources.map(s =>
+            `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
+        ).join('；');
+        last.appendChild(srcDiv);
+        scrollDown();
+    }
 }
 
 function escHtml(t) {
@@ -167,17 +195,17 @@ async function send() {
                 if (d === '[DONE]') continue;
                 try {
                     const p = JSON.parse(d);
-                    if (p.type === 'text') { full += p.content; updateLast(full); }
-                    else if (p.type === 'sources') { sources = p.sources; S.msgs[S.msgs.length - 1].sources = sources; renderMsgs(); }
-                    else if (p.type === 'error') { full += '\n\n' + p.content; updateLast(full); }
+                    if (p.type === 'text') { full += p.content; updateLastBubble(full); }
+                    else if (p.type === 'sources') { sources = p.sources; updateLastSources(sources); }
+                    else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
                 } catch (e) {}
             }
         }
 
-        if (!full) updateLast('抱歉，未能获取到回复，请重试。');
+        if (!full) updateLastBubble('抱歉，未能获取到回复，请重试。');
 
     } catch (e) {
-        updateLast('请求失败: ' + e.message);
+        updateLastBubble('请求失败: ' + e.message);
     } finally {
         S.streaming = false;
         document.getElementById('sendBtn').disabled = false;
