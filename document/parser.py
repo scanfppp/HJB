@@ -94,7 +94,7 @@ def parse_pdf(file_path: str, force_ocr: bool = False) -> str:
 
 
 def _ocr_pdf(file_path: str) -> str:
-    """Tesseract OCR 扫描版 PDF"""
+    """Tesseract OCR 扫描版 PDF：200DPI + 并行 + 加速参数"""
     if not _check_tesseract():
         return (
             "此PDF为扫描版（图片型），需要安装Tesseract OCR才能识别。\n"
@@ -106,23 +106,39 @@ def _ocr_pdf(file_path: str) -> str:
     import fitz
     import pytesseract
     from PIL import Image
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     doc = fitz.open(file_path)
     page_count = doc.page_count
-    all_text = []
 
-    for page_num in range(page_count):
+    # Tesseract 加速参数: OEM 1 = LSTM only, PSM 6 = uniform text block
+    tesseract_config = '--oem 1 --psm 6'
+
+    def ocr_page(page_num):
         try:
             page = doc.load_page(page_num)
-            pix = page.get_pixmap(dpi=300)
+            # 200 DPI 平衡速度与精度
+            pix = page.get_pixmap(dpi=200)
+            # 转灰度减少处理量
             img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
-            text = pytesseract.image_to_string(img, lang='chi_sim+eng')
-            if text.strip():
-                all_text.append(text.strip())
+            img = img.convert('L')  # 灰度
+            text = pytesseract.image_to_string(img, lang='chi_sim+eng', config=tesseract_config)
+            return (page_num, text.strip() if text else '')
         except Exception as e:
             logger.warning(f"OCR第{page_num+1}页失败: {e}")
+            return (page_num, '')
+
+    # 并行处理（最多4线程）
+    results = {}
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(ocr_page, p): p for p in range(page_count)}
+        for future in as_completed(futures):
+            page_num, text = future.result()
+            results[page_num] = text
 
     doc.close()
+
+    all_text = [results[p] for p in sorted(results.keys()) if results[p]]
     full_text = "\n".join(all_text)
     logger.info(f"OCR完成: {page_count}页, {len(full_text)}字")
     return full_text if full_text.strip() else "OCR未能识别到文字内容"
