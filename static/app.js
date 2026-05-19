@@ -163,14 +163,47 @@ function finalizeLastBubble(content, sources) {
 function escHtml(t) {
     const d = document.createElement('div');
     d.textContent = t;
-    return d.innerHTML.replace(/\n/g, '<br>');
+    return d.innerHTML;
+}
+
+// 轻量内置markdown解析器，不依赖外部CDN，流式输出时即时生效
+function parseMD(text) {
+    if (!text) return '';
+    // 先转义HTML
+    let html = escHtml(text);
+    // 代码块 ```...```
+    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+    // 行内代码 `...`
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // 粗体 **...**
+    html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // 斜体 *...*
+    html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+    // 标题 ### ...
+    html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+    html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+    html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+    // 无序列表 - ... 或 * ...
+    html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+    // 引用 > ...
+    html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+    // 双换行 → 段落分隔
+    html = html.replace(/\n\n/g, '</p><p>');
+    // 单换行 → <br>
+    html = html.replace(/\n/g, '<br>');
+    // 包装段落
+    if (!html.startsWith('<')) html = '<p>' + html;
+    if (!html.endsWith('>')) html = html + '</p>';
+    return html;
 }
 
 function mdRender(t) {
+    // 优先使用marked（更完整的表格/嵌套支持），降级用内置parseMD
     if (typeof marked !== 'undefined' && marked.parse) {
         try { marked.setOptions({ breaks: true, gfm: true }); return marked.parse(t); } catch (e) {}
     }
-    return '<p>' + escHtml(t).replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>') + '</p>';
+    return parseMD(t);
 }
 
 /* ====== send ====== */

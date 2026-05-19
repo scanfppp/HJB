@@ -348,3 +348,12 @@ DETAIL:  Key (document_id)=(8) is not present in table "documents".
 2026-05-19 19:49:19 | INFO     | retrieval.hybrid_search | RRF融合: 语义20条 + 关键词0条
 2026-05-19 19:49:19 | INFO     | retrieval.reranker | RRF融合: 20条语义 + 0条关键词 → 20条融合结果
 2026-05-19 19:49:19 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回10条结果
+2026-05-19 19:53:33 | INFO     | retrieval.hybrid_search | 语义检索: 简要总结一下舰船舰载软件质量监督通用要求...
+2026-05-19 19:53:50 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:54:02 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:54:02 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 19:54:02 | INFO     | retrieval.hybrid_search | 关键词检索: 简要总结一下舰船舰载软件质量监督通用要求...
+2026-05-19 19:54:02 | INFO     | retrieval.hybrid_search | RRF融合: 语义20条 + 关键词0条
+2026-05-19 19:54:02 | INFO     | retrieval.reranker | RRF融合: 20条语义 + 0条关键词 → 20条融合结果
+2026-05-19 19:54:02 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回10条结果
+2026-05-19 19:54:05 | INFO     | llm.client | LLM客户端初始化: https://dashscope.aliyuncs.com/compatible-mode/v1
