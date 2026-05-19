@@ -200,3 +200,88 @@ Check your internet connection or see how to run the library in offline mode at 
 2026-05-19 19:14:22 | INFO     | document.cleaner | 文本清洗完成，长度: 37288 字符
 2026-05-19 19:14:22 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189262_HJB.docx
 2026-05-19 19:14:22 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:21:02 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189661_GJB.docx
+2026-05-19 19:21:02 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:21:06 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:21:07 | INFO     | document.parser | Tesseract OCR 就绪
+2026-05-19 19:21:34 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:21:34 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:21:34 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189694_HJB.docx
+2026-05-19 19:21:34 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:21:43 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189661_GJB.docx
+2026-05-19 19:21:43 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:21:43 | INFO     | database.operations | 文档已入库: ID=1, 名称=军用软件质量监督要求
+2026-05-19 19:21:43 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:21:43 | INFO     | document.chunker | 文本分块完成: 5个块
+2026-05-19 19:22:00 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:22:11 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:22:13 | INFO     | embeddings.embedder | 批量嵌入完成: 5个文本 → 5个向量
+2026-05-19 19:22:13 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:22:40 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:22:40 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:22:40 | INFO     | database.operations | 文档已入库: ID=2, 名称=中 华 人 民 共 和 国 国 用 标 准
+2026-05-19 19:22:40 | INFO     | document.chunker | 章节切分: 34个章节
+2026-05-19 19:22:40 | INFO     | document.chunker | 文本分块完成: 60个块
+2026-05-19 19:23:02 | INFO     | embeddings.embedder | 批量嵌入完成: 60个文本 → 60个向量
+2026-05-19 19:23:02 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189694_HJB.docx
+2026-05-19 19:23:02 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:23:02 | INFO     | database.operations | 文档已入库: ID=3, 名称=舰船舰载软件质量监督通用要求
+2026-05-19 19:23:02 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:23:02 | INFO     | document.chunker | 文本分块完成: 4个块
+2026-05-19 19:23:04 | INFO     | embeddings.embedder | 批量嵌入完成: 4个文本 → 4个向量
+2026-05-19 19:23:04 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189661_GJB.docx
+2026-05-19 19:23:04 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:23:04 | INFO     | database.operations | 文档已入库: ID=4, 名称=军用软件质量监督要求
+2026-05-19 19:23:04 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:23:04 | INFO     | document.chunker | 文本分块完成: 5个块
+2026-05-19 19:23:06 | INFO     | embeddings.embedder | 批量嵌入完成: 5个文本 → 5个向量
+2026-05-19 19:23:06 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:23:31 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:23:31 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:23:31 | INFO     | database.operations | 文档已入库: ID=5, 名称=中 华 人 民 共 和 国 国 用 标 准
+2026-05-19 19:23:31 | INFO     | document.chunker | 章节切分: 34个章节
+2026-05-19 19:23:31 | INFO     | document.chunker | 文本分块完成: 60个块
+2026-05-19 19:23:57 | INFO     | embeddings.embedder | 批量嵌入完成: 60个文本 → 60个向量
+2026-05-19 19:23:58 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189694_HJB.docx
+2026-05-19 19:23:58 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:23:58 | INFO     | database.operations | 文档已入库: ID=6, 名称=舰船舰载软件质量监督通用要求
+2026-05-19 19:23:58 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:23:58 | INFO     | document.chunker | 文本分块完成: 4个块
+2026-05-19 19:23:59 | INFO     | embeddings.embedder | 批量嵌入完成: 4个文本 → 4个向量
+2026-05-19 19:25:21 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:25:33 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:25:33 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 19:27:10 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:27:11 | INFO     | document.parser | Tesseract OCR 就绪
+2026-05-19 19:27:12 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:27:24 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:27:24 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 19:27:24 | INFO     | database.operations | 文档已入库: ID=7, 名称=测试
+2026-05-19 19:27:38 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:27:38 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:27:38 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190058_HJB.docx
+2026-05-19 19:27:38 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:27:38 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190058_GJB.docx
+2026-05-19 19:27:38 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:27:43 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779190058_HJB.docx
+2026-05-19 19:27:43 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 19:27:43 | INFO     | database.operations | 文档已入库: ID=8, 名称=舰船舰载软件质量监督通用要求
+2026-05-19 19:27:43 | INFO     | document.chunker | 章节切分: 1个章节
+2026-05-19 19:27:43 | INFO     | document.chunker | 文本分块完成: 4个块
+2026-05-19 19:27:59 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:28:06 | INFO     | database.operations | 文档已入库: ID=9, 名称=测试
+2026-05-19 19:28:12 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:28:14 | INFO     | embeddings.embedder | 批量嵌入完成: 4个文本 → 4个向量
+2026-05-19 19:28:14 | ERROR    | database.operations | 向量入库失败: insert or update on table "vector_st" violates foreign key constraint "vector_st_document_id_fkey"
+DETAIL:  Key (document_id)=(8) is not present in table "documents".
+
+2026-05-19 19:28:14 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:28:25 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 19:28:37 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 19:28:37 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 19:28:37 | INFO     | database.operations | 批量插入 1 个向量块
+2026-05-19 19:28:41 | INFO     | document.parser | OCR完成: 24页, 38590字
+2026-05-19 19:28:41 | INFO     | document.cleaner | 文本清洗完成，长度: 38202 字符
+2026-05-19 19:28:41 | INFO     | database.operations | 文档已入库: ID=10, 名称=中 华 人 民 共 和 国 国 用 标 准
+2026-05-19 19:28:41 | INFO     | document.chunker | 章节切分: 34个章节
+2026-05-19 19:28:41 | INFO     | document.chunker | 文本分块完成: 60个块

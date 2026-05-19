@@ -187,8 +187,9 @@ def insert_vectors_batch(vectors_data: list) -> int:
             conn.commit()
         logger.info(f"批量插入 {inserted} 个向量块")
         return inserted
-    except Exception:
+    except Exception as e:
         conn.rollback()
+        logger.error(f"向量入库失败: {e}")
         raise
     finally:
         release_connection(conn)

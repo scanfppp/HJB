@@ -56,9 +56,10 @@ def execute_query(sql: str, params: tuple = None, fetch: bool = True):
             cur.execute(sql, params)
             if fetch:
                 result = cur.fetchall()
-                return result
+            else:
+                result = None
             conn.commit()
-            return None
+            return result
     except Exception:
         conn.rollback()
         raise
