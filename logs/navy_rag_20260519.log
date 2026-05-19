@@ -1,0 +1,202 @@
+2026-05-19 13:40:05 | INFO     | database.schema | 执行建表/扩展: CREATE EXTENSION IF NOT EXISTS vector;...
+2026-05-19 13:40:05 | INFO     | database.schema | 执行建表/扩展: CREATE TABLE IF NOT EXISTS documents (
+        id SERIA...
+2026-05-19 13:40:05 | INFO     | database.schema | 执行建表/扩展: CREATE TABLE IF NOT EXISTS vector_st (
+        id SERIA...
+2026-05-19 13:40:05 | INFO     | database.schema | 执行建表/扩展: CREATE TABLE IF NOT EXISTS query_logs (
+        id SERI...
+2026-05-19 13:40:05 | INFO     | database.schema | 执行建表/扩展: CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PR...
+2026-05-19 13:40:05 | INFO     | database.schema | 所有表创建完成
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_vector_embedding
+    ON...
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_documents_status ON documents...
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_documents_field ON documents(...
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_documents_number ON documents...
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_vector_doc_id ON vector_st(do...
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_query_logs_time ON query_logs...
+2026-05-19 13:40:05 | INFO     | database.schema | 创建索引: CREATE INDEX IF NOT EXISTS idx_query_logs_type ON query_logs...
+2026-05-19 13:40:05 | INFO     | database.schema | 所有索引创建完成
+2026-05-19 13:40:05 | INFO     | database.schema | 默认用户 admin 创建成功
+2026-05-19 13:40:05 | INFO     | database.schema | 数据库初始化完成
+2026-05-19 13:41:11 | INFO     | auth.login | 用户登录成功: admin
+2026-05-19 13:48:36 | INFO     | auth.login | 用户登录成功: admin
+2026-05-19 14:00:06 | INFO     | auth.login | 用户登录成功: admin
+2026-05-19 14:14:03 | INFO     | llm.client | LLM客户端初始化: https://dashscope.aliyuncs.com/compatible-mode/v1
+2026-05-19 14:14:05 | INFO     | llm.client | LLM调用完成: 模型=qwen-plus, 输入长度≈11
+2026-05-19 14:14:48 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5
+2026-05-19 14:22:46 | ERROR    | embeddings.embedder | 嵌入模型加载失败: We couldn't connect to 'https://huggingface.co' to load the files, and couldn't find them in the cached files.
+Check your internet connection or see how to run the library in offline mode at 'https://huggingface.co/docs/transformers/installation#offline-mode'.
+2026-05-19 14:47:16 | INFO     | retrieval.hybrid_search | 语义检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 14:47:30 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5
+2026-05-19 14:47:41 | ERROR    | embeddings.embedder | 嵌入模型加载失败: Cannot send a request, as the client has been closed.
+2026-05-19 14:47:41 | ERROR    | __main__ | Chat error: Cannot send a request, as the client has been closed.
+2026-05-19 14:55:31 | INFO     | retrieval.hybrid_search | 语义检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 14:55:45 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5
+2026-05-19 14:57:59 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5
+2026-05-19 15:03:09 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 15:05:42 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 15:05:42 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:09:07 | INFO     | retrieval.hybrid_search | 语义检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 15:09:22 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 15:09:33 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 15:09:33 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:10:17 | INFO     | retrieval.hybrid_search | 语义检索: 舰艇消防...
+2026-05-19 15:10:29 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 15:10:39 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 15:10:39 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:12:11 | INFO     | retrieval.hybrid_search | 语义检索: 你好...
+2026-05-19 15:13:12 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 15:13:21 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 15:13:22 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:13:22 | INFO     | retrieval.hybrid_search | 关键词检索: 你好...
+2026-05-19 15:13:22 | INFO     | retrieval.hybrid_search | RRF融合: 语义0条 + 关键词0条
+2026-05-19 15:13:22 | INFO     | retrieval.reranker | RRF融合: 0条语义 + 0条关键词 → 0条融合结果
+2026-05-19 15:13:22 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回0条结果
+2026-05-19 15:15:19 | INFO     | retrieval.hybrid_search | 语义检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 15:15:33 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 15:15:43 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 15:15:43 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:15:43 | INFO     | retrieval.hybrid_search | 关键词检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 15:15:43 | INFO     | retrieval.hybrid_search | RRF融合: 语义0条 + 关键词0条
+2026-05-19 15:15:43 | INFO     | retrieval.reranker | RRF融合: 0条语义 + 0条关键词 → 0条融合结果
+2026-05-19 15:15:43 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回0条结果
+2026-05-19 15:30:18 | INFO     | retrieval.hybrid_search | 语义检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 15:30:34 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 15:30:45 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 15:30:45 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:30:45 | INFO     | retrieval.hybrid_search | 关键词检索: 舰艇消防系统的设计要求和验收标准是什么？...
+2026-05-19 15:30:45 | INFO     | retrieval.hybrid_search | RRF融合: 语义0条 + 关键词0条
+2026-05-19 15:30:45 | INFO     | retrieval.reranker | RRF融合: 0条语义 + 0条关键词 → 0条融合结果
+2026-05-19 15:30:45 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回0条结果
+2026-05-19 15:34:58 | INFO     | retrieval.hybrid_search | 语义检索: 弹药库安全管理有哪些强制性规定？...
+2026-05-19 15:34:58 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 15:34:58 | INFO     | retrieval.hybrid_search | 关键词检索: 弹药库安全管理有哪些强制性规定？...
+2026-05-19 15:34:58 | INFO     | retrieval.hybrid_search | RRF融合: 语义0条 + 关键词0条
+2026-05-19 15:34:58 | INFO     | retrieval.reranker | RRF融合: 0条语义 + 0条关键词 → 0条融合结果
+2026-05-19 15:34:58 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回0条结果
+2026-05-19 18:09:17 | ERROR    | document.parser | PaddleOCR 初始化失败: Unknown argument: show_log
+2026-05-19 18:11:40 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:14:19 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779185659_GJB.docx
+2026-05-19 18:14:19 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 18:14:24 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779185664_HJB.docx
+2026-05-19 18:14:24 | INFO     | document.cleaner | 文本清洗完成，长度: 2839 字符
+2026-05-19 18:16:09 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779185769_HJB.docx
+2026-05-19 18:16:09 | INFO     | document.cleaner | 文本清洗完成，长度: 2839 字符
+2026-05-19 18:18:57 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779185937_HJB.docx
+2026-05-19 18:18:57 | INFO     | document.cleaner | 文本清洗完成，长度: 2825 字符
+2026-05-19 18:19:53 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779185993_GJB.docx
+2026-05-19 18:19:53 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 18:20:10 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779186010_HJB.docx
+2026-05-19 18:20:10 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 18:34:04 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779186844_GJB.docx
+2026-05-19 18:34:04 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 18:34:09 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779186849_HJB.docx
+2026-05-19 18:34:09 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 18:34:20 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR: D:\HJB\navy_rag\data\uploads\1779186859_ABUIABA9GAAggP-mwwYokKia2AY.pdf
+2026-05-19 18:34:47 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:34:47 | WARNING  | document.parser | OCR 第1页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:47 | WARNING  | document.parser | OCR 第2页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:48 | WARNING  | document.parser | OCR 第3页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:48 | WARNING  | document.parser | OCR 第4页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:48 | WARNING  | document.parser | OCR 第5页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:49 | WARNING  | document.parser | OCR 第6页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:49 | WARNING  | document.parser | OCR 第7页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:50 | WARNING  | document.parser | OCR 第8页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:50 | WARNING  | document.parser | OCR 第9页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:50 | WARNING  | document.parser | OCR 第10页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:51 | WARNING  | document.parser | OCR 第11页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:51 | WARNING  | document.parser | OCR 第12页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:52 | WARNING  | document.parser | OCR 第13页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:52 | WARNING  | document.parser | OCR 第14页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:53 | WARNING  | document.parser | OCR 第15页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:53 | WARNING  | document.parser | OCR 第16页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:53 | WARNING  | document.parser | OCR 第17页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:54 | WARNING  | document.parser | OCR 第18页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:54 | WARNING  | document.parser | OCR 第19页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:55 | WARNING  | document.parser | OCR 第20页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:55 | WARNING  | document.parser | OCR 第21页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:55 | WARNING  | document.parser | OCR 第22页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:56 | WARNING  | document.parser | OCR 第23页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:34:56 | WARNING  | document.parser | OCR 第24页失败: PaddleOCR.predict() got an unexpected keyword argument 'cls'
+2026-05-19 18:36:46 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR: D:\HJB\navy_rag\data\uploads\1779187006_ABUIABA9GAAggP-mwwYokKia2AY.pdf
+2026-05-19 18:37:13 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:37:23 | INFO     | document.parser | OCR完成: D:\HJB\navy_rag\data\uploads\1779187006_ABUIABA9GAAggP-mwwYokKia2AY.pdf, 24页, 0字
+2026-05-19 18:37:23 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779187043_GJB.docx
+2026-05-19 18:37:23 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 18:37:23 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779187043_GJB.docx
+2026-05-19 18:37:23 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 18:37:30 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779187050_GJB.docx
+2026-05-19 18:37:30 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 18:37:34 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779187054_HJB.docx
+2026-05-19 18:37:34 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
+2026-05-19 18:37:38 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR: D:\HJB\navy_rag\data\uploads\1779187058_ABUIABA9GAAggP-mwwYokKia2AY.pdf
+2026-05-19 18:37:48 | INFO     | document.parser | OCR完成: D:\HJB\navy_rag\data\uploads\1779187058_ABUIABA9GAAggP-mwwYokKia2AY.pdf, 24页, 0字
+2026-05-19 18:41:11 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:42:43 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:43:30 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:44:20 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:45:39 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:46:34 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:47:21 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:48:01 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:49:12 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 18:51:19 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 19:04:03 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR: D:\HJB\navy_rag\data\uploads\1779188642_ABUIABA9GAAggP-mwwYokKia2AY.pdf
+2026-05-19 19:04:32 | INFO     | document.parser | PaddleOCR 初始化完成
+2026-05-19 19:04:36 | WARNING  | document.parser | PaddleOCR 第1页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:04:40 | WARNING  | document.parser | PaddleOCR 第2页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:04:43 | WARNING  | document.parser | PaddleOCR 第3页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:04:47 | WARNING  | document.parser | PaddleOCR 第4页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:04:50 | WARNING  | document.parser | PaddleOCR 第5页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:04:54 | WARNING  | document.parser | PaddleOCR 第6页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:04:58 | WARNING  | document.parser | PaddleOCR 第7页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:01 | WARNING  | document.parser | PaddleOCR 第8页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:05 | WARNING  | document.parser | PaddleOCR 第9页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:07 | WARNING  | document.parser | PaddleOCR 第10页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:10 | WARNING  | document.parser | PaddleOCR 第11页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:13 | WARNING  | document.parser | PaddleOCR 第12页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:16 | WARNING  | document.parser | PaddleOCR 第13页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:19 | WARNING  | document.parser | PaddleOCR 第14页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:22 | WARNING  | document.parser | PaddleOCR 第15页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:25 | WARNING  | document.parser | PaddleOCR 第16页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:28 | WARNING  | document.parser | PaddleOCR 第17页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:31 | WARNING  | document.parser | PaddleOCR 第18页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:34 | WARNING  | document.parser | PaddleOCR 第19页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:37 | WARNING  | document.parser | PaddleOCR 第20页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:40 | WARNING  | document.parser | PaddleOCR 第21页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:43 | WARNING  | document.parser | PaddleOCR 第22页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:46 | WARNING  | document.parser | PaddleOCR 第23页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:05:50 | WARNING  | document.parser | PaddleOCR 第24页失败: (Unimplemented) ConvertPirAttribute2RuntimeAttribute not support [pir::ArrayAttribute<pir::DoubleAttribute>]  (at ..\paddle\fluid\framework\new_executor\instruction\onednn\onednn_instruction.cc:118)
+
+2026-05-19 19:09:19 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779188959_GJB.docx
+2026-05-19 19:09:19 | INFO     | document.cleaner | 文本清洗完成，长度: 3342 字符
+2026-05-19 19:09:23 | INFO     | document.parser | 检测到扫描版PDF (平均0字/页)，切换OCR
+2026-05-19 19:09:24 | INFO     | document.parser | Tesseract OCR 就绪
+2026-05-19 19:14:22 | INFO     | document.parser | OCR完成: 24页, 37360字
+2026-05-19 19:14:22 | INFO     | document.cleaner | 文本清洗完成，长度: 37288 字符
+2026-05-19 19:14:22 | INFO     | document.parser | DOCX解析完成: D:\HJB\navy_rag\data\uploads\1779189262_HJB.docx
+2026-05-19 19:14:22 | INFO     | document.cleaner | 文本清洗完成，长度: 2841 字符
