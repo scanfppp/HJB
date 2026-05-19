@@ -115,20 +115,31 @@ function addMsg(role, content, sources) {
     renderMsgs();
 }
 
+let _renderPending = false;
+let _pendingContent = '';
+
 function updateLastBubble(content) {
-    // 流式更新：直接设textContent，不调用marked避免闪烁
+    // 流式更新：requestAnimationFrame 节流，每帧最多渲染一次markdown
     if (!S.msgs.length) return;
     S.msgs[S.msgs.length - 1].content = content;
-    const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
-    const last = bubbles[bubbles.length - 1];
-    if (last) {
-        last.textContent = content;
-        scrollDown();
+    _pendingContent = content;
+
+    if (!_renderPending) {
+        _renderPending = true;
+        requestAnimationFrame(() => {
+            _renderPending = false;
+            const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
+            const last = bubbles[bubbles.length - 1];
+            if (last) {
+                last.innerHTML = mdRender(_pendingContent);
+                scrollDown();
+            }
+        });
     }
 }
 
 function finalizeLastBubble(content, sources) {
-    // 流结束后一次性渲染markdown + 来源
+    // 流结束后确保最终渲染 + 来源
     if (!S.msgs.length) return;
     S.msgs[S.msgs.length - 1].content = content;
     S.msgs[S.msgs.length - 1].sources = sources;
@@ -146,6 +157,7 @@ function finalizeLastBubble(content, sources) {
         }
         scrollDown();
     }
+    _renderPending = false;
 }
 
 function escHtml(t) {
