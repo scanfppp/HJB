@@ -116,29 +116,34 @@ function addMsg(role, content, sources) {
 }
 
 function updateLastBubble(content) {
-    // 直接更新最后一条助手消息的DOM，避免全量重渲染导致的闪烁
+    // 流式更新：直接设textContent，不调用marked避免闪烁
     if (!S.msgs.length) return;
     S.msgs[S.msgs.length - 1].content = content;
     const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
     const last = bubbles[bubbles.length - 1];
     if (last) {
-        last.innerHTML = mdRender(content);
+        last.textContent = content;
         scrollDown();
     }
 }
 
-function updateLastSources(sources) {
+function finalizeLastBubble(content, sources) {
+    // 流结束后一次性渲染markdown + 来源
     if (!S.msgs.length) return;
+    S.msgs[S.msgs.length - 1].content = content;
     S.msgs[S.msgs.length - 1].sources = sources;
     const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
     const last = bubbles[bubbles.length - 1];
-    if (last && sources && sources.length) {
-        const srcDiv = document.createElement('div');
-        srcDiv.className = 'msg-sources';
-        srcDiv.innerHTML = '<span class="src-icon"></span> ' + sources.map(s =>
-            `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
-        ).join('；');
-        last.appendChild(srcDiv);
+    if (last) {
+        last.innerHTML = mdRender(content);
+        if (sources && sources.length) {
+            const srcDiv = document.createElement('div');
+            srcDiv.className = 'msg-sources';
+            srcDiv.textContent = sources.map(s =>
+                `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
+            ).join('；');
+            last.appendChild(srcDiv);
+        }
         scrollDown();
     }
 }
@@ -196,16 +201,21 @@ async function send() {
                 try {
                     const p = JSON.parse(d);
                     if (p.type === 'text') { full += p.content; updateLastBubble(full); }
-                    else if (p.type === 'sources') { sources = p.sources; updateLastSources(sources); }
+                    else if (p.type === 'sources') { sources = p.sources; }
                     else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
                 } catch (e) {}
             }
         }
 
-        if (!full) updateLastBubble('抱歉，未能获取到回复，请重试。');
+        // 流结束，一次性渲染markdown
+        if (full) {
+            finalizeLastBubble(full, sources);
+        } else {
+            finalizeLastBubble('抱歉，未能获取到回复，请重试。', []);
+        }
 
     } catch (e) {
-        updateLastBubble('请求失败: ' + e.message);
+        finalizeLastBubble('请求失败: ' + e.message, []);
     } finally {
         S.streaming = false;
         document.getElementById('sendBtn').disabled = false;
