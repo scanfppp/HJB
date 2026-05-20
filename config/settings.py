@@ -22,7 +22,7 @@ DB_MAX_CONN = 5
 # ============================================================
 VECTOR_DIMENSIONS = 768
 VECTOR_TABLE = "vector_st"
-MAX_DOCUMENT_BATCH_SIZE = 9
+MAX_DOCUMENT_BATCH_SIZE = 24  # 增大批次减少encode调用次数
 INDEX_TYPE = "HNSW"
 DISTANCE_TYPE = "COSINE_DISTANCE"
 

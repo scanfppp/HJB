@@ -76,13 +76,6 @@ def parse_pdf(file_path: str, force_ocr: bool = False) -> str:
             if text:
                 all_text.append(text)
                 total_chars += len(text)
-            tables = page.extract_tables()
-            for table in tables:
-                for row in table:
-                    if row:
-                        row_text = " | ".join(str(cell) for cell in row if cell)
-                        all_text.append(row_text)
-                        total_chars += len(row_text)
 
     avg_chars = total_chars / max(page_count, 1)
     if avg_chars < 30 and page_count > 1:
@@ -111,17 +104,15 @@ def _ocr_pdf(file_path: str) -> str:
     doc = fitz.open(file_path)
     page_count = doc.page_count
 
-    # Tesseract 加速参数: OEM 1 = LSTM only, PSM 6 = uniform text block
-    tesseract_config = '--oem 1 --psm 6'
+    # Tesseract 加速: OEM 1=LSTM only, PSM 3=自动检测
+    tesseract_config = '--oem 1 --psm 3'
 
     def ocr_page(page_num):
         try:
             page = doc.load_page(page_num)
-            # 200 DPI 平衡速度与精度
-            pix = page.get_pixmap(dpi=200)
-            # 转灰度减少处理量
+            # 150 DPI，军用标准字体规整，精度足够
+            pix = page.get_pixmap(dpi=150)
             img = Image.frombytes('RGB', [pix.width, pix.height], pix.samples)
-            img = img.convert('L')  # 灰度
             text = pytesseract.image_to_string(img, lang='chi_sim+eng', config=tesseract_config)
             return (page_num, text.strip() if text else '')
         except Exception as e:
