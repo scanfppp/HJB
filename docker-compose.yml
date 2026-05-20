@@ -1,4 +1,5 @@
 services:
+  # ==================== PostgreSQL + pgvector ====================
   pgvector:
     image: pgvector/pgvector:pg16
     container_name: navy_pgvector
@@ -16,7 +17,46 @@ services:
       -c shared_preload_libraries=vector
       -c max_connections=100
       -c shared_buffers=256MB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ==================== 海军标准 RAG 智能体（FastAPI 后端 + 前端） ====================
+  app:
+    build: .
+    container_name: navy_rag_app
+    restart: unless-stopped
+    ports:
+      - "8501:8501"
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      - DB_HOST=pgvector
+      - DB_PORT=5432
+      - DB_NAME=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=pgvector
+      - HF_ENDPOINT=https://hf-mirror.com
+      - LLM_API_KEY=sk-98a311032b374edd914f4e0f71f17d30
+      - LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+      - LLM_MODEL=qwen-plus
+      - TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
+    volumes:
+      - ./data/uploads:/app/data/uploads
+      - ./data/tessdata:/app/data/tessdata
+      - ./logs:/app/logs
+      - huggingface_cache:/root/.cache/huggingface
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8501/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 volumes:
   pgvector_data:
+    driver: local
+  huggingface_cache:
     driver: local

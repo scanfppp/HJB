@@ -412,6 +412,23 @@ async def api_search(req: Request):
 static_dir = os.path.join(os.path.dirname(__file__), "static")
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+# ==================== 启动事件 ====================
+@app.on_event("startup")
+async def startup():
+    """应用启动时自动初始化数据库"""
+    from database.schema import init_db
+    import time
+    max_retries = 10
+    for i in range(max_retries):
+        try:
+            init_db()
+            logger.info("数据库初始化完成")
+            return
+        except Exception as e:
+            logger.warning(f"数据库初始化等待 {i+1}/{max_retries}: {e}")
+            time.sleep(3)
+    logger.error("数据库初始化失败，请检查连接")
+
 # ==================== 启动 ====================
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8501, log_level="info")

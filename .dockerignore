@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+.git
+data/uploads/*
+data/tessdata/*
+logs/*
+.env
+.venv
+.streamlit
+*.md
+!requirements.txt
