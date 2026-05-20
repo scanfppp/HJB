@@ -335,12 +335,17 @@ function renderPending() {
     const disableIngest = ingesting || hasParsing;
     const statusLabel = s => ({parsing:'解析中...', parsed:'已上传', ingesting:'入库中...'}[s] || '');
     area.innerHTML =
-        `<button class="btn-ingest-all" onclick="doIngestAll()" ${disableIngest ? 'disabled' : ''}>
-            ${ingesting ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 正在入库...' :
-              uploading ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 文件上传中...' :
-              '📦 全部入库'}
-            <span class="count">${S.pending.length}</span>
-        </button>` +
+        `<div class="btn-row">
+            <button class="btn-ingest-all" onclick="doIngestAll()" ${disableIngest ? 'disabled' : ''}>
+                ${ingesting ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 正在入库...' :
+                  uploading ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 文件上传中...' :
+                  '📦 全部入库'}
+                <span class="count">${S.pending.length}</span>
+            </button>
+            <button class="btn-remove-all" onclick="clearAllPending()">
+                🗑️ 全部移除
+            </button>
+        </div>` +
         (S._uploadProgress ? `<div class="ingest-progress"><span class="spinner"></span> ${S._uploadProgress}</div>` : '') +
         (S._ingestProgress ? `<div class="ingest-progress"><span class="spinner"></span> ${S._ingestProgress}</div>` : '') +
         S.pending.map(f => {
@@ -420,6 +425,11 @@ async function doIngestAll() {
 function removePending(id) {
     const i = findPendingIdx(id);
     if (i >= 0) { S.pending.splice(i, 1); renderPending(); }
+}
+function clearAllPending() {
+    if (!S.pending.length) return;
+    S.pending = []; renderPending();
+    toast('已清空待入库列表', 'info');
 }
 
 async function loadUploadedDocs() {

@@ -233,6 +233,15 @@ body{
 .btn-ingest-all:disabled{background:#c8d0e0;cursor:not-allowed}
 .btn-ingest-all .count{font-size:12px;opacity:.7}
 
+/* 按钮并排 */
+.btn-row{display:flex;gap:10px;margin-bottom:12px}
+.btn-remove-all{
+    padding:10px 16px;background:var(--white);color:var(--text2);border:1px solid var(--border);
+    border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;
+    transition:all .15s;
+}
+.btn-remove-all:hover{background:#fff1f0;border-color:#f5222d;color:#f5222d}
+
 /* toast提示 */
 .toast{position:fixed;top:20px;right:20px;z-index:9999;animation:toastIn .3s ease}
 .toast-msg{padding:12px 20px;border-radius:10px;font-size:14px;color:#fff;box-shadow:0 4px 16px rgba(0,0,0,.15);max-width:400px}
