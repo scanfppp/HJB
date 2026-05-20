@@ -381,21 +381,20 @@ async function doIngest(id, showToast = true) {
 
 async function doIngestAll() {
     if (!S.pending.length) return;
-    S._ingesting = true; S._ingestProgress = `准备入库 ${S.pending.length} 个文件...`; renderPending();
-    const ids = S.pending.map(p => p._id);
-    let done = 0, fail = 0;
-    // 并行入库（最多4个并发）
-    const batchSize = 4;
-    for (let b = 0; b < ids.length; b += batchSize) {
-        const batch = ids.slice(b, b + batchSize);
-        S._ingestProgress = `正在入库 ${done+1}-${Math.min(done+batchSize, ids.length)}/${ids.length}`; renderPending();
-        const results = await Promise.all(batch.map(id => doIngest(id, false)));
-        done += batch.length;
-        for (const r of results) { if (!r) fail++; }
+    S._ingesting = true; renderPending();
+    const total = S.pending.length;
+    let fail = 0;
+    // 顺序执行避免竞态，每次从当前数组取第一个待入库文件
+    for (let i = 0; i < total; i++) {
+        if (!S.pending.length) break;
+        const id = S.pending[0]._id;
+        S._ingestProgress = `正在入库 ${i+1}/${total}`; renderPending();
+        const ok = await doIngest(id, false);
+        if (!ok) fail++;
     }
     S._ingesting = false; S._ingestProgress = '';
-    if (fail > 0) toast(`入库完成: ${done-fail}成功, ${fail}失败`, fail > 0 ? 'error' : 'success');
-    else toast(`全部入库完成！共 ${done} 个文件`, 'success');
+    if (fail > 0) toast(`入库完成: ${total-fail}成功, ${fail}失败`, 'error');
+    else if (total-fail > 0) toast(`${total-fail} 个文件入库完成`, 'success');
     renderPending(); loadUploadedDocs();
 }
 
