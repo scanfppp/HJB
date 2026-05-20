@@ -102,14 +102,15 @@ function pinConv(id) {
     const c = S.convs[id];
     if (c) { c.pinned = !c.pinned; localStorage.setItem('navy_v2', JSON.stringify(S.convs)); renderHistory(); }
 }
-function renameConv(id) {
+async function renameConv(id) {
     const c = S.convs[id];
     if (!c) return;
-    const name = prompt('重命名对话:', c.title);
+    const name = await showModal('重命名', '请输入新的对话名称', c.title);
     if (name && name.trim()) { c.title = name.trim().slice(0, 40); localStorage.setItem('navy_v2', JSON.stringify(S.convs)); renderHistory(); }
 }
-function deleteConv(id) {
-    if (!confirm('确定删除这个对话？')) return;
+async function deleteConv(id) {
+    const ok = await showModal('删除对话', '确定删除这个对话？此操作不可撤销。');
+    if (!ok) return;
     delete S.convs[id];
     if (S.cid === id) { S.cid = null; S.msgs = []; renderMsgs(); }
     localStorage.setItem('navy_v2', JSON.stringify(S.convs));
@@ -122,11 +123,42 @@ function loadConv(id) {
     if (c) { S.cid = id; S.msgs = c.msgs.slice(); renderMsgs(); switchPanel('chat'); renderHistory(); }
 }
 
-function clearHistory() {
-    if (!confirm('清空所有历史对话？')) return;
+async function clearHistory() {
+    const ok = await showModal('清空历史', '确定清空所有历史对话？此操作不可撤销。');
+    if (!ok) return;
     S.convs = {}; S.cid = null; S.msgs = [];
     localStorage.removeItem('navy_v2');
     renderMsgs(); renderHistory();
+}
+
+// 自定义模态弹窗（替代原生的 confirm / prompt）
+function showModal(title, message, inputValue) {
+    return new Promise(resolve => {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal-overlay';
+        const hasInput = inputValue !== undefined;
+        overlay.innerHTML = `
+            <div class="modal-box">
+                <div class="modal-title">${title}</div>
+                <div class="modal-msg">${message}</div>
+                ${hasInput ? `<input class="modal-input" id="modalInput" value="${inputValue||''}" maxlength="40">` : ''}
+                <div class="modal-btns">
+                    <button class="modal-btn cancel">取消</button>
+                    <button class="modal-btn confirm">${hasInput ? '确定' : '删除'}</button>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        const close = (val) => { overlay.remove(); resolve(val); };
+        overlay.querySelector('.cancel').onclick = () => close(null);
+        overlay.querySelector('.confirm').onclick = () => {
+            const val = hasInput ? document.getElementById('modalInput').value : true;
+            close(val);
+        };
+        overlay.addEventListener('click', e => { if (e.target === overlay) close(null); });
+        document.addEventListener('keydown', function esc(e) { if (e.key === 'Escape') { close(null); document.removeEventListener('keydown', esc); } });
+        setTimeout(() => { const inp = document.getElementById('modalInput'); if (inp) { inp.focus(); inp.select(); } }, 100);
+    });
 }
 
 /* ====== render messages ====== */
