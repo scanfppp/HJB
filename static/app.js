@@ -83,7 +83,7 @@ function toggleHistoryMenu(e, id) {
     menu.className = 'history-dropdown';
     menu.style.position = 'fixed';
     menu.style.top = rect.bottom + 4 + 'px';
-    menu.style.left = Math.min(rect.left, window.innerWidth - 140) + 'px';
+    menu.style.left = (rect.right - 130) + 'px';
     const c = S.convs[id];
     menu.innerHTML = `
         <div class="history-dropdown-item" onclick="pinConv('${id}')">📌 ${c && c.pinned ? '取消置顶' : '置顶'}</div>
