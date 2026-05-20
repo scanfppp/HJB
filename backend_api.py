@@ -187,7 +187,9 @@ async def upload(file: UploadFile = File(...)):
             return JSONResponse({"error": f"不支持格式: {ext}"}, status_code=400)
 
         content = await file.read()
-        tmp_path = os.path.join(UPLOAD_DIR, f"{int(time.time())}_{file.filename}")
+        # 文件夹上传时文件名可能包含路径(如 subfolder/doc.pdf)，用basename取纯文件名
+        safe_name = os.path.basename(file.filename) if file.filename else "upload"
+        tmp_path = os.path.join(UPLOAD_DIR, f"{int(time.time())}_{safe_name}")
         with open(tmp_path, "wb") as f:
             f.write(content)
 
