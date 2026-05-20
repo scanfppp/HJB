@@ -285,8 +285,13 @@ function autoGrow(el) {
 
 /* ====== upload ====== */
 async function onFiles(files) {
-    for (const f of files) {
-        // 先添加占位卡片显示解析中
+    const exts = ['pdf', 'docx', 'txt'];
+    const all = Array.from(files);
+    const valid = all.filter(f => exts.includes(f.name.split('.').pop().toLowerCase()));
+    const skipped = all.length - valid.length;
+    if (skipped > 0) toast(`已跳过 ${skipped} 个不支持的文件`, 'info');
+    if (!valid.length) { toast('未找到 PDF/DOCX/TXT 文件', 'error'); return; }
+    for (const f of valid) {
         const tmpId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
         S.pending.push({ _id: tmpId, filename: f.name, text_length: 0, metadata: {}, _status: 'parsing' });
         renderPending();
@@ -296,14 +301,14 @@ async function onFiles(files) {
             const d = await r.json();
             if (d.error) { toast(f.name + ': ' + d.error, 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); continue; }
             d._id = tmpId; d._status = 'done';
-            // 替换占位卡片
             const idx = findPendingIdx(tmpId);
             if (idx >= 0) S.pending[idx] = d;
             renderPending();
-        } catch (e) { toast(f.name + ' 上传失败: ' + e.message, 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); }
+        } catch (e) { toast(f.name + ' 上传失败', 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); }
     }
-    const inp = document.getElementById('fileInput');
-    if (inp) inp.value = '';
+    document.getElementById('fileInput').value = '';
+    const folderInp = document.getElementById('folderInput');
+    if (folderInp) folderInp.value = '';
 }
 
 function findPendingIdx(id) { return S.pending.findIndex(p => p._id === id); }
