@@ -286,37 +286,51 @@ function autoGrow(el) {
 /* ====== upload ====== */
 async function onFiles(files) {
     for (const f of files) {
+        // 先添加占位卡片显示解析中
+        const tmpId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+        S.pending.push({ _id: tmpId, filename: f.name, text_length: 0, metadata: {}, _status: 'parsing' });
+        renderPending();
         const fd = new FormData(); fd.append('file', f);
         try {
             const r = await fetch('/api/upload', { method: 'POST', body: fd });
             const d = await r.json();
-            if (d.error) { alert(d.error); continue; }
-            d._id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
-            S.pending.push(d);
+            if (d.error) { toast(f.name + ': ' + d.error, 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); continue; }
+            d._id = tmpId; d._status = 'done';
+            // 替换占位卡片
+            const idx = findPendingIdx(tmpId);
+            if (idx >= 0) S.pending[idx] = d;
             renderPending();
-        } catch (e) { alert('上传失败: ' + e.message); }
+        } catch (e) { toast(f.name + ' 上传失败: ' + e.message, 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); }
     }
     const inp = document.getElementById('fileInput');
     if (inp) inp.value = '';
 }
 
 function findPendingIdx(id) { return S.pending.findIndex(p => p._id === id); }
+function toast(msg, type) {
+    const t = document.createElement('div'); t.className = 'toast';
+    t.innerHTML = `<div class="toast-msg ${type}">${msg}</div>`;
+    document.body.appendChild(t);
+    setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 300); }, 2500);
+}
 
 function renderPending() {
     const area = document.getElementById('pendingArea');
     if (!S.pending.length) { area.innerHTML = ''; return; }
+    const ingesting = S._ingesting || false;
     area.innerHTML =
-        `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-            <button class="btn-sm-primary" onclick="doIngestAll()" style="font-size:14px;padding:8px 20px">
-                📦 全部入库 (${S.pending.length})
-            </button>
-        </div>` +
+        `<button class="btn-ingest-all" onclick="doIngestAll()" ${ingesting ? 'disabled' : ''}>
+            ${ingesting ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 正在入库...' : '📦 全部入库'}
+            <span class="count">${S.pending.length}</span>
+        </button>` +
+        (S._ingestProgress ? `<div class="ingest-progress"><span class="spinner"></span> ${S._ingestProgress}</div>` : '') +
         S.pending.map(f => {
         const id = f._id;
+        const status = f._status || '';
         return `
         <div class="pending-row">
             <div class="info">
-                <div class="name">${f.filename}</div>
+                <div class="name">${f.filename} ${status ? `<span class="file-status ${status}">${status==='ingesting'?'入库中...':status==='done'?'已入库':'解析中...'}</span>` : ''}</div>
                 <div class="meta">${f.text_length} 字 | 编号: ${f.metadata.standard_number || '未识别'} | 名称: ${f.metadata.standard_name || '未识别'}</div>
                 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                     <input value="${f.metadata.standard_number||''}" placeholder="标准编号" onchange="S.pending[findPendingIdx('${id}')].metadata.standard_number=this.value">
@@ -329,38 +343,60 @@ function renderPending() {
                 </div>
             </div>
             <div style="display:flex;gap:8px">
-                <button class="btn-sm-primary" onclick="doIngest('${id}')">入库</button>
-                <button class="btn-sm-ghost" onclick="removePending('${id}')">移除</button>
+                <button class="btn-sm-primary" onclick="doIngest('${id}')" ${ingesting ? 'disabled' : ''}>入库</button>
+                <button class="btn-sm-ghost" onclick="removePending('${id}')" ${ingesting ? 'disabled' : ''}>移除</button>
             </div>
         </div>`;
     }).join('');
 }
 
-async function doIngest(id) {
+async function doIngest(id, showToast = true) {
     const i = findPendingIdx(id);
-    if (i < 0) return;
+    if (i < 0) return false;
     const f = S.pending[i];
-    const r = await fetch('/api/ingest', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            file_path: f.file_path,
-            standard_number: f.metadata.standard_number,
-            standard_name: f.metadata.standard_name || f.filename,
-            applicable_field: f.metadata.applicable_field || '',
-            doc_status: f.metadata.doc_status || '现行有效',
-            responsible_unit: f.metadata.responsible_unit || '',
-            file_type: f.filename.split('.').pop(),
-        }),
-    });
-    const d = await r.json();
-    if (d.error) { alert('入库失败: ' + d.error); return; }
-    alert(`入库成功！ID:${d.doc_id}, 分块:${d.chunk_count}`);
-    S.pending.splice(i, 1); renderPending(); loadUploadedDocs();
+    f._status = 'ingesting'; renderPending();
+    try {
+        const r = await fetch('/api/ingest', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                file_path: f.file_path,
+                standard_number: f.metadata.standard_number,
+                standard_name: f.metadata.standard_name || f.filename,
+                applicable_field: f.metadata.applicable_field || '',
+                doc_status: f.metadata.doc_status || '现行有效',
+                responsible_unit: f.metadata.responsible_unit || '',
+                file_type: f.filename.split('.').pop(),
+            }),
+        });
+        const d = await r.json();
+        if (d.error) { toast('入库失败: ' + d.error, 'error'); f._status = ''; renderPending(); return false; }
+        if (showToast) toast(`✅ ${f.filename} 入库成功 (ID:${d.doc_id}, ${d.chunk_count}块)`, 'success');
+        S.pending.splice(i, 1); renderPending(); loadUploadedDocs();
+        return true;
+    } catch (e) {
+        toast('入库失败: ' + e.message, 'error');
+        f._status = ''; renderPending(); return false;
+    }
 }
 
 async function doIngestAll() {
+    if (!S.pending.length) return;
+    S._ingesting = true; S._ingestProgress = `准备入库 ${S.pending.length} 个文件...`; renderPending();
     const ids = S.pending.map(p => p._id);
-    for (const id of ids) { await doIngest(id); }
+    let done = 0, fail = 0;
+    // 并行入库（最多4个并发）
+    const batchSize = 4;
+    for (let b = 0; b < ids.length; b += batchSize) {
+        const batch = ids.slice(b, b + batchSize);
+        S._ingestProgress = `正在入库 ${done+1}-${Math.min(done+batchSize, ids.length)}/${ids.length}`; renderPending();
+        const results = await Promise.all(batch.map(id => doIngest(id, false)));
+        done += batch.length;
+        for (const r of results) { if (!r) fail++; }
+    }
+    S._ingesting = false; S._ingestProgress = '';
+    if (fail > 0) toast(`入库完成: ${done-fail}成功, ${fail}失败`, fail > 0 ? 'error' : 'success');
+    else toast(`全部入库完成！共 ${done} 个文件`, 'success');
+    renderPending(); loadUploadedDocs();
 }
 
 function removePending(id) {
