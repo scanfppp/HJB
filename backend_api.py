@@ -195,6 +195,11 @@ async def upload(file: UploadFile = File(...)):
         cleaned = clean_text(raw_text)
         meta = extract_metadata_from_text(cleaned, file.filename)
 
+        # 缓存解析结果到 .txt 文件，避免入库时重复解析
+        cache_path = tmp_path + ".txt"
+        with open(cache_path, "w", encoding="utf-8") as f:
+            f.write(cleaned)
+
         return JSONResponse({
             "success": True,
             "filename": file.filename,
@@ -231,8 +236,14 @@ async def ingest(req: Request):
         if not os.path.exists(file_path):
             return JSONResponse({"error": "文件不存在"}, status_code=400)
 
-        raw_text = parse_file(file_path)
-        cleaned = clean_text(raw_text)
+        # 优先读上传时的解析缓存，避免重复解析（尤其OCR极慢）
+        cache_path = file_path + ".txt"
+        if os.path.exists(cache_path):
+            with open(cache_path, "r", encoding="utf-8") as f:
+                cleaned = f.read()
+        else:
+            raw_text = parse_file(file_path)
+            cleaned = clean_text(raw_text)
 
         doc_id = insert_document(
             standard_number=standard_number,

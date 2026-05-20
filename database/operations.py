@@ -160,20 +160,15 @@ def get_document_count_by_status() -> dict:
 # ============================================================
 
 def insert_vectors_batch(vectors_data: list) -> int:
-    """批量插入向量块"""
+    """批量插入向量块（使用execute_values一次写入）"""
+    from psycopg2.extras import execute_values
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            inserted = 0
+            rows = []
             for item in vectors_data:
-                embedding_str = f"[{','.join(str(v) for v in item['embedding'])}]"
-                sql = f"""
-                    INSERT INTO {VECTOR_TABLE}
-                        (document_id, chunk_text, chunk_index, section_title,
-                         clause_number, chunk_type, embedding, metadata)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s::vector, %s)
-                """
-                cur.execute(sql, (
+                embedding_str = f"[{','.join(f'{v:.6f}' for v in item['embedding'])}]"
+                rows.append((
                     item["document_id"],
                     item["chunk_text"],
                     item["chunk_index"],
@@ -183,8 +178,16 @@ def insert_vectors_batch(vectors_data: list) -> int:
                     embedding_str,
                     Json(item.get("metadata", {})),
                 ))
-                inserted += 1
+
+            sql = f"""
+                INSERT INTO {VECTOR_TABLE}
+                    (document_id, chunk_text, chunk_index, section_title,
+                     clause_number, chunk_type, embedding, metadata)
+                VALUES %s
+            """
+            execute_values(cur, sql, rows, template="(%s, %s, %s, %s, %s, %s, %s::vector, %s)", page_size=len(rows))
             conn.commit()
+        inserted = len(rows)
         logger.info(f"批量插入 {inserted} 个向量块")
         return inserted
     except Exception as e:
