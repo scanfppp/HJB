@@ -78,15 +78,19 @@ function toggleHistoryMenu(e, id) {
     // 关闭已打开的菜单
     document.querySelectorAll('.history-dropdown').forEach(d => d.remove());
     const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
     const menu = document.createElement('div');
     menu.className = 'history-dropdown';
+    menu.style.position = 'fixed';
+    menu.style.top = rect.bottom + 4 + 'px';
+    menu.style.left = Math.min(rect.left, window.innerWidth - 140) + 'px';
     const c = S.convs[id];
     menu.innerHTML = `
         <div class="history-dropdown-item" onclick="pinConv('${id}')">📌 ${c && c.pinned ? '取消置顶' : '置顶'}</div>
         <div class="history-dropdown-item" onclick="renameConv('${id}')">✏️ 重命名</div>
         <div class="history-dropdown-item danger" onclick="deleteConv('${id}')">🗑️ 删除</div>
     `;
-    btn.parentElement.appendChild(menu);
+    document.body.appendChild(menu);
     // 点击其他地方关闭
     setTimeout(() => document.addEventListener('click', function close() {
         menu.remove();
