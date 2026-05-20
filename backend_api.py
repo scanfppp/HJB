@@ -70,7 +70,7 @@ async def chat(req: Request):
             doc_status=doc_status if doc_status else None,
             applicable_field=applicable_field if applicable_field else None,
         )
-        return hybrid_search(query=question, top_k=10, filters=filters)
+        return hybrid_search(query=question, top_k=5, filters=filters)
 
     search_results = await loop.run_in_executor(None, do_search)
 
@@ -358,7 +358,7 @@ async def api_search(req: Request):
             doc_status=doc_status if doc_status else None,
             applicable_field=applicable_field if applicable_field else None,
         )
-        results = hybrid_search(query=query, top_k=10, filters=filters)
+        results = hybrid_search(query=query, top_k=5, filters=filters)
         formatted = []
         for r in results:
             formatted.append({
