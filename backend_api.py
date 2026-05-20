@@ -321,7 +321,25 @@ async def api_optimize(req: Request):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# ==================== 查漏补缺 ====================
+# ==================== 标准分析 ====================
+@app.post("/api/gap-text")
+async def api_gap_text(req: Request):
+    """标准分析：接收文字或上传文件内容，检索关联标准给出分析"""
+    data = await req.json()
+    text = data.get("text", "").strip()
+    standard_name = data.get("standard_name", "")
+    if not text:
+        return JSONResponse({"error": "请提供标准内容或名称"}, status_code=400)
+    try:
+        from rag.gap_analyzer import analyze_text
+        result = analyze_text(text, standard_name)
+        return JSONResponse({
+            "gap_report": result.get("gap_report", ""),
+            "related_standards": result.get("related_standards", []),
+        })
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
 @app.post("/api/gap-analysis")
 async def api_gap(req: Request):
     data = await req.json()

@@ -132,8 +132,24 @@ body{
 .typing span:nth-child(3){animation-delay:.4s}
 @keyframes dot{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-5px)}}
 
+/* mode bar */
+.mode-bar{display:flex;gap:6px;justify-content:center;margin-bottom:10px;flex-wrap:wrap}
+.mode-btn{
+    padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--white);
+    font-size:12px;color:var(--text2);cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.mode-btn:hover{border-color:var(--brand);color:var(--brand)}
+.mode-btn.active{background:var(--brand-light);border-color:var(--brand);color:var(--brand);font-weight:500}
+
 /* input */
 .chat-foot{border-top:1px solid transparent}
+.btn-attach{
+    width:34px;height:34px;border:none;border-radius:50%;background:transparent;
+    color:var(--text3);cursor:pointer;flex-shrink:0;display:none;align-items:center;
+    justify-content:center;transition:all .15s;
+}
+.btn-attach:hover{background:var(--bg);color:var(--brand)}
+.btn-attach.show{display:flex}
 .input-box{
     display:flex;align-items:flex-end;background:var(--white);
     border:1px solid var(--border);border-radius:16px;padding:8px 12px;

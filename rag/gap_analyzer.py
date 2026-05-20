@@ -18,6 +18,51 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def analyze_text(text: str, standard_name: str = "") -> Dict:
+    """
+    标准分析函数（基于任意文本，无需入库）
+    """
+    # 用文本内容检索关联标准
+    from retrieval.hybrid_search import hybrid_search
+    search_results = hybrid_search(query=text if not standard_name else standard_name, top_k=10)
+
+    related_docs = []
+    context_parts = []
+    for r in search_results:
+        related_docs.append({
+            "standard_number": r.get("standard_number", ""),
+            "standard_name": r.get("standard_name", ""),
+            "doc_status": r.get("doc_status", ""),
+            "similarity": r.get("similarity", 0),
+        })
+        context_parts.append(
+            f"【{r.get('standard_number', '')} {r.get('standard_name', '')}】\n"
+            f"内容: {r.get('chunk_text', '')[:1000]}\n"
+        )
+
+    related_content = "\n---\n".join(context_parts) if context_parts else "暂无关联标准"
+    name = standard_name or "用户提交内容"
+
+    prompt = GAP_ANALYSIS_PROMPT.format(
+        standard_number="",
+        standard_name=name,
+        applicable_field="",
+        target_content=text[:8000],
+        related_content=related_content[:8000],
+    )
+
+    gap_report = chat_with_prompt(
+        prompt,
+        f"请对《{name}》进行标准化分析",
+        max_tokens=4096,
+    )
+
+    return {
+        "gap_report": gap_report,
+        "related_standards": related_docs,
+    }
+
+
 def analyze_gaps(
     doc_id: int,
     include_draft: bool = False,

@@ -5,6 +5,8 @@ const S = {
     msgs: [],
     streaming: false,
     pending: [],
+    chatMode: 'chat',  // chat | optimize | gap | compliance
+    gapFile: null,      // 标准分析模式上传的文件
 };
 
 /* ====== init ====== */
@@ -211,54 +213,27 @@ async function send() {
     const input = document.getElementById('chatInput');
     const q = input.value.trim();
     if (!q || S.streaming) return;
+    const mode = S.chatMode;
 
     input.value = ''; input.style.height = 'auto';
     document.getElementById('sendBtn').disabled = true;
     S.streaming = true;
 
     addMsg('user', q);
-    // placeholder for assistant
     S.msgs.push({ role: 'assistant', content: '', sources: [] });
     renderMsgs();
     document.getElementById('welcomeBlock').style.display = 'none';
 
     try {
-        const hist = S.msgs.filter(m => m.role === 'user' || m.role === 'assistant')
-            .slice(0, -1).map(m => ({ role: m.role, content: m.content }));
-
-        const res = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ question: q, history: hist }),
-        });
-
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let full = '', sources = [];
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            for (const line of dec.decode(value).split('\n')) {
-                if (!line.startsWith('data: ')) continue;
-                const d = line.slice(6);
-                if (d === '[DONE]') continue;
-                try {
-                    const p = JSON.parse(d);
-                    if (p.type === 'text') { full += p.content; updateLastBubble(full); }
-                    else if (p.type === 'sources') { sources = p.sources; }
-                    else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
-                } catch (e) {}
-            }
+        if (mode === 'chat') {
+            await sendChat(q);
+        } else if (mode === 'optimize') {
+            await sendOptimize(q);
+        } else if (mode === 'gap') {
+            await sendGap(q);
+        } else if (mode === 'compliance') {
+            await sendCompliance(q);
         }
-
-        // 流结束，一次性渲染markdown
-        if (full) {
-            finalizeLastBubble(full, sources);
-        } else {
-            finalizeLastBubble('抱歉，未能获取到回复，请重试。', []);
-        }
-
     } catch (e) {
         finalizeLastBubble('请求失败: ' + e.message, []);
     } finally {
@@ -269,8 +244,121 @@ async function send() {
     }
 }
 
+async function sendChat(q) {
+    const hist = S.msgs.filter(m => m.role === 'user' || m.role === 'assistant')
+        .slice(0, -1).map(m => ({ role: m.role, content: m.content }));
+    const res = await fetch('/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q, history: hist }),
+    });
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let full = '', sources = [];
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const d = line.slice(6);
+            if (d === '[DONE]') continue;
+            try {
+                const p = JSON.parse(d);
+                if (p.type === 'text') { full += p.content; updateLastBubble(full); }
+                else if (p.type === 'sources') { sources = p.sources; }
+                else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
+            } catch (e) {}
+        }
+    }
+    if (full) { finalizeLastBubble(full, sources); }
+    else { finalizeLastBubble('抱歉，未能获取到回复，请重试。', []); }
+}
+
+async function sendOptimize(text) {
+    updateLastBubble('正在优化...');
+    const res = await fetch('/api/optimize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+    });
+    const d = await res.json();
+    if (d.error) { finalizeLastBubble(d.error, []); return; }
+    const result = `### 优化结果\n\n${d.optimized || ''}`;
+    finalizeLastBubble(result, []);
+}
+
+async function sendGap(q) {
+    updateLastBubble('正在分析...');
+    let url, body;
+    if (S.gapFile) {
+        // 先上传文件
+        const fd = new FormData(); fd.append('file', S.gapFile);
+        const upRes = await fetch('/api/upload', { method: 'POST', body: fd });
+        const upData = await upRes.json();
+        if (upData.error) { finalizeLastBubble('文件上传失败: ' + upData.error, []); S.gapFile = null; return; }
+        // 用上传文件的文本内容做分析
+        url = '/api/gap-text';
+        body = JSON.stringify({ text: upData.cleaned_text, standard_name: upData.metadata?.standard_name || S.gapFile.name });
+        S.gapFile = null;
+    } else {
+        url = '/api/gap-text';
+        body = JSON.stringify({ text: q, standard_name: q });
+    }
+    const res = await fetch(url, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body,
+    });
+    const d = await res.json();
+    if (d.error) { finalizeLastBubble(d.error, []); return; }
+    let result = '';
+    if (d.related_standards && d.related_standards.length) {
+        result += '### 关联标准\n' + d.related_standards.map(s => `- [${s.standard_number}] ${s.standard_name}`).join('\n') + '\n\n';
+    }
+    result += '### 分析报告\n' + (d.gap_report || d.report || '分析完成');
+    finalizeLastBubble(result, []);
+}
+
+async function sendCompliance(text) {
+    updateLastBubble('正在校验...');
+    const res = await fetch('/api/compliance', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+    });
+    const d = await res.json();
+    if (d.error) { finalizeLastBubble(d.error, []); return; }
+    const result = `### 合规校验报告\n\n对照片 ${d.standards_count || 0} 条标准条款\n\n${d.report || ''}`;
+    finalizeLastBubble(result, []);
+}
+
+function setMode(mode) {
+    S.chatMode = mode;
+    S.gapFile = null;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector(`.mode-btn[data-mode="${mode}"]`).classList.add('active');
+    // 标准分析模式显示附件按钮
+    const attachBtn = document.getElementById('attachBtn');
+    attachBtn.classList.toggle('show', mode === 'gap');
+    // 更新placeholder
+    const input = document.getElementById('chatInput');
+    const placeholders = {chat:'输入你的问题...', optimize:'粘贴需要优化的公文文本...', gap:'输入标准名称或问题，或上传文档...', compliance:'粘贴需要校验的制度/方案内容...'};
+    input.placeholder = placeholders[mode] || '输入...';
+    document.getElementById('footHint').textContent = mode === 'gap' ? '可上传文档或直接输入问题' : mode === 'optimize' ? '粘贴文本后发送即可优化' : mode === 'compliance' ? '粘贴制度内容后发送即可校验' : 'Enter 发送，Shift+Enter 换行';
+    input.focus();
+}
+
+function onGapFile(files) {
+    if (!files.length) return;
+    const f = files[0];
+    S.gapFile = f;
+    // 在输入框里显示文件名
+    document.getElementById('chatInput').value = `[已选择文件: ${f.name}] 请描述分析要求`;
+    document.getElementById('gapFileInput').value = '';
+}
+
 function sendHint(t) {
     document.getElementById('chatInput').value = t;
+    // 根据提示内容自动切换模式
+    if (t.includes('优化')) setMode('optimize');
+    else if (t.includes('内容缺口') || t.includes('分析')) setMode('gap');
+    else setMode('chat');
     send();
 }
 
