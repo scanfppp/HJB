@@ -291,26 +291,37 @@ async function onFiles(files) {
             const r = await fetch('/api/upload', { method: 'POST', body: fd });
             const d = await r.json();
             if (d.error) { alert(d.error); continue; }
+            d._id = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
             S.pending.push(d);
             renderPending();
         } catch (e) { alert('上传失败: ' + e.message); }
     }
-    // 重置file input，确保能再次选择同一文件
     const inp = document.getElementById('fileInput');
     if (inp) inp.value = '';
 }
 
+function findPendingIdx(id) { return S.pending.findIndex(p => p._id === id); }
+
 function renderPending() {
     const area = document.getElementById('pendingArea');
-    area.innerHTML = S.pending.map((f, i) => `
+    if (!S.pending.length) { area.innerHTML = ''; return; }
+    area.innerHTML =
+        `<div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+            <button class="btn-sm-primary" onclick="doIngestAll()" style="font-size:14px;padding:8px 20px">
+                📦 全部入库 (${S.pending.length})
+            </button>
+        </div>` +
+        S.pending.map(f => {
+        const id = f._id;
+        return `
         <div class="pending-row">
             <div class="info">
                 <div class="name">${f.filename}</div>
                 <div class="meta">${f.text_length} 字 | 编号: ${f.metadata.standard_number || '未识别'} | 名称: ${f.metadata.standard_name || '未识别'}</div>
                 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-                    <input value="${f.metadata.standard_number||''}" placeholder="标准编号" onchange="S.pending[${i}].metadata.standard_number=this.value">
-                    <input value="${f.metadata.standard_name||''}" placeholder="标准名称" onchange="S.pending[${i}].metadata.standard_name=this.value" style="width:180px">
-                    <select onchange="S.pending[${i}].metadata.doc_status=this.value">
+                    <input value="${f.metadata.standard_number||''}" placeholder="标准编号" onchange="S.pending[findPendingIdx('${id}')].metadata.standard_number=this.value">
+                    <input value="${f.metadata.standard_name||''}" placeholder="标准名称" onchange="S.pending[findPendingIdx('${id}')].metadata.standard_name=this.value" style="width:180px">
+                    <select onchange="S.pending[findPendingIdx('${id}')].metadata.doc_status=this.value">
                         <option ${f.metadata.doc_status==='现行有效'?'selected':''}>现行有效</option>
                         <option ${f.metadata.doc_status==='修订中'?'selected':''}>修订中</option>
                         <option ${f.metadata.doc_status==='废止'?'selected':''}>废止</option>
@@ -318,14 +329,16 @@ function renderPending() {
                 </div>
             </div>
             <div style="display:flex;gap:8px">
-                <button class="btn-sm-primary" onclick="doIngest(${i})">入库</button>
-                <button class="btn-sm-ghost" onclick="S.pending.splice(${i},1);renderPending()">移除</button>
+                <button class="btn-sm-primary" onclick="doIngest('${id}')">入库</button>
+                <button class="btn-sm-ghost" onclick="removePending('${id}')">移除</button>
             </div>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
-async function doIngest(i) {
+async function doIngest(id) {
+    const i = findPendingIdx(id);
+    if (i < 0) return;
     const f = S.pending[i];
     const r = await fetch('/api/ingest', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -343,6 +356,16 @@ async function doIngest(i) {
     if (d.error) { alert('入库失败: ' + d.error); return; }
     alert(`入库成功！ID:${d.doc_id}, 分块:${d.chunk_count}`);
     S.pending.splice(i, 1); renderPending(); loadUploadedDocs();
+}
+
+async function doIngestAll() {
+    const ids = S.pending.map(p => p._id);
+    for (const id of ids) { await doIngest(id); }
+}
+
+function removePending(id) {
+    const i = findPendingIdx(id);
+    if (i >= 0) { S.pending.splice(i, 1); renderPending(); }
 }
 
 async function loadUploadedDocs() {
