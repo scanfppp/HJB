@@ -357,3 +357,18 @@ DETAIL:  Key (document_id)=(8) is not present in table "documents".
 2026-05-19 19:54:02 | INFO     | retrieval.reranker | RRF融合: 20条语义 + 0条关键词 → 20条融合结果
 2026-05-19 19:54:02 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回10条结果
 2026-05-19 19:54:05 | INFO     | llm.client | LLM客户端初始化: https://dashscope.aliyuncs.com/compatible-mode/v1
+2026-05-19 20:00:49 | INFO     | retrieval.hybrid_search | 语义检索: 总结一下上面的内容...
+2026-05-19 20:01:06 | INFO     | embeddings.embedder | 正在加载嵌入模型: BAAI/bge-base-zh-v1.5 (镜像: https://hf-mirror.com)
+2026-05-19 20:01:18 | INFO     | embeddings.embedder | 嵌入模型加载完成，维度: 768
+2026-05-19 20:01:19 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 20:01:19 | INFO     | retrieval.hybrid_search | 关键词检索: 总结一下上面的内容...
+2026-05-19 20:01:19 | INFO     | retrieval.hybrid_search | RRF融合: 语义20条 + 关键词0条
+2026-05-19 20:01:19 | INFO     | retrieval.reranker | RRF融合: 20条语义 + 0条关键词 → 20条融合结果
+2026-05-19 20:01:19 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回10条结果
+2026-05-19 20:01:21 | INFO     | llm.client | LLM客户端初始化: https://dashscope.aliyuncs.com/compatible-mode/v1
+2026-05-19 20:02:39 | INFO     | retrieval.hybrid_search | 语义检索: 再精简一下...
+2026-05-19 20:02:39 | INFO     | embeddings.embedder | 批量嵌入完成: 1个文本 → 1个向量
+2026-05-19 20:02:39 | INFO     | retrieval.hybrid_search | 关键词检索: 再精简一下...
+2026-05-19 20:02:39 | INFO     | retrieval.hybrid_search | RRF融合: 语义20条 + 关键词0条
+2026-05-19 20:02:39 | INFO     | retrieval.reranker | RRF融合: 20条语义 + 0条关键词 → 20条融合结果
+2026-05-19 20:02:39 | INFO     | retrieval.hybrid_search | 混合检索完成: 返回10条结果
