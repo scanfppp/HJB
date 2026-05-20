@@ -4,7 +4,7 @@
 """
 
 from database.connection import get_connection, release_connection
-from config.settings import VECTOR_DIMENSIONS, VECTOR_TABLE, INDEX_TYPE
+from config.settings import VECTOR_DIMENSIONS, VECTOR_TABLE
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

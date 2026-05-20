@@ -617,70 +617,14 @@ async function loadUploadedDocs() {
 }
 
 /* ====== optimize ====== */
-async function doOptimize() {
-    const text = document.getElementById('optInput').value.trim();
-    if (!text) return alert('请输入需要优化的文本');
-    const box = document.getElementById('optResult');
-    box.innerHTML = '<p style="color:var(--text3)">优化中...</p>';
-    try {
-        const r = await fetch('/api/optimize', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
-        });
-        const d = await r.json();
-        if (d.error) { box.innerHTML = `<p style="color:red">${d.error}</p>`; return; }
-        box.innerHTML = `<p style="color:#52c41a;margin-bottom:12px">${d.changes_summary}</p>${mdRender(d.optimized)}`;
-    } catch (e) { box.innerHTML = `<p style="color:red">请求失败</p>`; }
-}
-
 /* ====== gap ====== */
 async function loadDocs() {
     try {
         const r = await fetch('/api/documents'); const docs = await r.json();
-        document.getElementById('gapSelect').innerHTML =
-            '<option value="">选择目标标准...</option>' +
+        const sel = document.getElementById('gapSelect');
+        if (sel) sel.innerHTML = '<option value="">选择目标标准...</option>' +
             docs.map(d => `<option value="${d.id}">[${d.standard_number}] ${d.standard_name} (${d.doc_status})</option>`).join('');
     } catch (e) {}
-}
-
-async function doGap() {
-    const id = document.getElementById('gapSelect').value;
-    if (!id) return alert('请选择目标标准');
-    const box = document.getElementById('gapResult');
-    box.innerHTML = '<p style="color:var(--text3)">分析中，请稍候...</p>';
-    try {
-        const r = await fetch('/api/gap-analysis', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ doc_id: parseInt(id) }),
-        });
-        const d = await r.json();
-        if (d.error) { box.innerHTML = `<p style="color:red">${d.error}</p>`; return; }
-        let h = '';
-        if (d.related_standards && d.related_standards.length) {
-            h += '<h4>📎 关联标准</h4>' + d.related_standards.map(s =>
-                `<p style="font-size:13px;color:var(--text2)">[${s.standard_number}] ${s.standard_name}</p>`
-            ).join('');
-        }
-        h += '<h4 style="margin-top:14px">📊 分析报告</h4>' + mdRender(d.gap_report);
-        box.innerHTML = h;
-    } catch (e) { box.innerHTML = '<p style="color:red">请求失败</p>'; }
-}
-
-/* ====== compliance ====== */
-async function doCompliance() {
-    const text = document.getElementById('complyInput').value.trim();
-    if (!text) return alert('请输入校验内容');
-    const box = document.getElementById('complyResult');
-    box.innerHTML = '<p style="color:var(--text3)">校验中...</p>';
-    try {
-        const r = await fetch('/api/compliance', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text }),
-        });
-        const d = await r.json();
-        if (d.error) { box.innerHTML = `<p style="color:red">${d.error}</p>`; return; }
-        box.innerHTML = `<p style="color:#52c41a;margin-bottom:12px">对照片 ${d.standards_count} 条标准条款</p>` + mdRender(d.report);
-    } catch (e) { box.innerHTML = '<p style="color:red">请求失败</p>'; }
 }
 
 /* ====== drag & drop ====== */

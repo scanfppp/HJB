@@ -3,34 +3,30 @@
 提供 RESTful + SSE 流式接口
 """
 
-import sys, os, io, json, time, hashlib, asyncio
+import sys, os, json, time, asyncio
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from fastapi import FastAPI, UploadFile, File, Form, Request, Query
-from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse, FileResponse
+from fastapi import FastAPI, UploadFile, File, Request
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from typing import Optional
 import uvicorn
 
 from config.settings import APP_TITLE, SUPPORTED_FORMATS, UPLOAD_DIR
 from database.operations import (
-    list_documents, get_document, insert_document, insert_vectors_batch,
-    get_recent_logs, log_query,
+    list_documents, get_document, insert_document, insert_vectors_batch, log_query,
 )
 from document.parser import parse_file, save_uploaded_file
 from document.cleaner import clean_text
 from document.chunker import chunk_text
 from document.metadata import extract_metadata_from_text, VALID_STATUSES
-from embeddings.embedder import embed_texts, embed_query
+from embeddings.embedder import embed_texts
 from retrieval.hybrid_search import hybrid_search
 from retrieval.filter import build_search_filters
-from rag.qa_chain import rag_qa
-from rag.summarizer import summarize_document
 from rag.optimizer import optimize_text
-from rag.gap_analyzer import analyze_gaps, compare_standards
+from rag.gap_analyzer import analyze_gaps, analyze_text
 from rag.compliance import check_compliance
-from llm.client import chat_stream, chat_with_prompt
+from llm.client import chat_stream
 from config.prompts import RAG_QA_SYSTEM_PROMPT
 from utils.logger import get_logger
 
