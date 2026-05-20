@@ -44,7 +44,8 @@ function saveConv() {
     if (!S.msgs.length) return;
     const id = S.cid || 'c' + Date.now();
     const title = (S.msgs.find(m => m.role === 'user') || {}).content || '对话';
-    S.convs[id] = { title: title.slice(0, 40), msgs: S.msgs.slice(), time: Date.now() };
+    const old = S.convs[id] || {};
+    S.convs[id] = { title: old.title || title.slice(0, 40), msgs: S.msgs.slice(), time: Date.now(), pinned: old.pinned || false };
     S.cid = id;
     localStorage.setItem('navy_v2', JSON.stringify(S.convs));
     renderHistory();
@@ -52,16 +53,63 @@ function saveConv() {
 
 function renderHistory() {
     const list = document.getElementById('historyList');
-    const convs = Object.entries(S.convs).sort((a, b) => b[1].time - a[1].time);
+    const convs = Object.entries(S.convs).sort((a, b) => {
+        if (a[1].pinned && !b[1].pinned) return -1;
+        if (!a[1].pinned && b[1].pinned) return 1;
+        return b[1].time - a[1].time;
+    });
 
     if (!convs.length) {
         list.innerHTML = '<div class="history-empty">暂无历史对话</div>';
         return;
     }
 
-    list.innerHTML = convs.map(([id, c]) =>
-        `<div class="history-item${id === S.cid ? ' active' : ''}" onclick="loadConv('${id}')" title="${c.title}">${c.title}</div>`
+    list.innerHTML = convs.map(([id, c]) => `
+        <div class="history-item${id === S.cid ? ' active' : ''}${c.pinned ? ' pinned' : ''}">
+            <span class="history-title" onclick="loadConv('${id}')">${c.pinned ? '📌 ' : ''}${c.title}</span>
+            <button class="history-menu-btn" onclick="event.stopPropagation();toggleHistoryMenu(event, '${id}')">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+        </div>`
     ).join('');
+}
+
+function toggleHistoryMenu(e, id) {
+    // 关闭已打开的菜单
+    document.querySelectorAll('.history-dropdown').forEach(d => d.remove());
+    const btn = e.currentTarget;
+    const menu = document.createElement('div');
+    menu.className = 'history-dropdown';
+    const c = S.convs[id];
+    menu.innerHTML = `
+        <div class="history-dropdown-item" onclick="pinConv('${id}')">📌 ${c && c.pinned ? '取消置顶' : '置顶'}</div>
+        <div class="history-dropdown-item" onclick="renameConv('${id}')">✏️ 重命名</div>
+        <div class="history-dropdown-item danger" onclick="deleteConv('${id}')">🗑️ 删除</div>
+    `;
+    btn.parentElement.appendChild(menu);
+    // 点击其他地方关闭
+    setTimeout(() => document.addEventListener('click', function close() {
+        menu.remove();
+        document.removeEventListener('click', close);
+    }), 0);
+}
+
+function pinConv(id) {
+    const c = S.convs[id];
+    if (c) { c.pinned = !c.pinned; localStorage.setItem('navy_v2', JSON.stringify(S.convs)); renderHistory(); }
+}
+function renameConv(id) {
+    const c = S.convs[id];
+    if (!c) return;
+    const name = prompt('重命名对话:', c.title);
+    if (name && name.trim()) { c.title = name.trim().slice(0, 40); localStorage.setItem('navy_v2', JSON.stringify(S.convs)); renderHistory(); }
+}
+function deleteConv(id) {
+    if (!confirm('确定删除这个对话？')) return;
+    delete S.convs[id];
+    if (S.cid === id) { S.cid = null; S.msgs = []; renderMsgs(); }
+    localStorage.setItem('navy_v2', JSON.stringify(S.convs));
+    renderHistory();
 }
 
 function loadConv(id) {
@@ -274,7 +322,7 @@ async function sendChat(q) {
 }
 
 async function sendOptimize(text) {
-    updateLastBubble('正在优化...');
+    updateLastBubble('正在按海军文书规范优化中...');
     const res = await fetch('/api/optimize', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -286,7 +334,7 @@ async function sendOptimize(text) {
 }
 
 async function sendGap(q) {
-    updateLastBubble('正在分析...');
+    updateLastBubble('正在检索相关标准文献，比对分析中...');
     let url, body;
     if (S.gapFile) {
         // 先上传文件
@@ -317,7 +365,7 @@ async function sendGap(q) {
 }
 
 async function sendCompliance(text) {
-    updateLastBubble('正在校验...');
+    updateLastBubble('正在对照标准条款逐条校验中...');
     const res = await fetch('/api/compliance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),

@@ -63,6 +63,30 @@ body{
 }
 .history-item:hover{background:var(--bg)}
 .history-item.active{background:var(--brand-light);color:var(--brand)}
+.history-item{display:flex;align-items:center;justify-content:space-between;position:relative}
+.history-item .history-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.history-item.pinned .history-title{color:var(--brand)}
+
+.history-menu-btn{
+    width:24px;height:24px;border:none;border-radius:4px;background:transparent;
+    color:var(--text3);cursor:pointer;flex-shrink:0;display:none;align-items:center;
+    justify-content:center;transition:all .1s;
+}
+.history-item:hover .history-menu-btn{display:flex}
+.history-menu-btn:hover{background:var(--bg);color:var(--text)}
+
+.history-dropdown{
+    position:absolute;right:0;top:36px;z-index:999;background:var(--white);
+    border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.1);
+    min-width:120px;padding:4px;animation:fadeIn .15s ease;
+}
+.history-dropdown-item{
+    padding:8px 12px;border-radius:6px;font-size:13px;color:var(--text2);cursor:pointer;
+    transition:background .1s;white-space:nowrap;
+}
+.history-dropdown-item:hover{background:var(--bg)}
+.history-dropdown-item.danger{color:#f5222d}
+.history-dropdown-item.danger:hover{background:#fff1f0}
 .history-empty{font-size:12px;color:var(--text3);text-align:center;padding:20px 0}
 
 /* ====== main ====== */
