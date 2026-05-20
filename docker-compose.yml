@@ -43,7 +43,6 @@ services:
       - LLM_API_KEY=sk-98a311032b374edd914f4e0f71f17d30
       - LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
       - LLM_MODEL=qwen-plus
-      - TESSDATA_PREFIX=/usr/share/tesseract-ocr/5/tessdata
     volumes:
       - ./data/uploads:/app/data/uploads
       - ./data/tessdata:/app/data/tessdata
