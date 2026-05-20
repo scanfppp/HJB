@@ -291,21 +291,27 @@ async function onFiles(files) {
     const skipped = all.length - valid.length;
     if (skipped > 0) toast(`已跳过 ${skipped} 个不支持的文件`, 'info');
     if (!valid.length) { toast('未找到 PDF/DOCX/TXT 文件', 'error'); return; }
+    S._uploading = true; renderPending();
+    let done = 0, fail = 0;
     for (const f of valid) {
         const tmpId = Date.now().toString(36) + Math.random().toString(36).slice(2,6);
         S.pending.push({ _id: tmpId, filename: f.name, text_length: 0, metadata: {}, _status: 'parsing' });
-        renderPending();
+        S._uploadProgress = `正在上传 ${done+1}/${valid.length}`; renderPending();
         const fd = new FormData(); fd.append('file', f);
         try {
             const r = await fetch('/api/upload', { method: 'POST', body: fd });
             const d = await r.json();
-            if (d.error) { toast(f.name + ': ' + d.error, 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); continue; }
-            d._id = tmpId; d._status = 'done';
+            if (d.error) { toast(f.name + ': ' + d.error, 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); fail++; continue; }
+            d._id = tmpId; d._status = 'parsed';
             const idx = findPendingIdx(tmpId);
             if (idx >= 0) S.pending[idx] = d;
-            renderPending();
-        } catch (e) { toast(f.name + ' 上传失败', 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); renderPending(); }
+            done++; renderPending();
+        } catch (e) { toast(f.name + ' 上传失败', 'error'); S.pending = S.pending.filter(p => p._id !== tmpId); fail++; renderPending(); }
     }
+    S._uploading = false; S._uploadProgress = '';
+    if (fail > 0) toast(`上传完成: ${done}成功 ${fail}失败`, fail > 0 ? 'error' : 'success');
+    else toast(`${done} 个文件上传完成`, 'success');
+    renderPending();
     document.getElementById('fileInput').value = '';
     const folderInp = document.getElementById('folderInput');
     if (folderInp) folderInp.value = '';
@@ -323,11 +329,19 @@ function renderPending() {
     const area = document.getElementById('pendingArea');
     if (!S.pending.length) { area.innerHTML = ''; return; }
     const ingesting = S._ingesting || false;
+    const uploading = S._uploading || false;
+    const hasParsing = S.pending.some(p => p._status === 'parsing');
+    // 有文件还在上传中时禁用全部入库
+    const disableIngest = ingesting || hasParsing;
+    const statusLabel = s => ({parsing:'解析中...', parsed:'已上传', ingesting:'入库中...'}[s] || '');
     area.innerHTML =
-        `<button class="btn-ingest-all" onclick="doIngestAll()" ${ingesting ? 'disabled' : ''}>
-            ${ingesting ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 正在入库...' : '📦 全部入库'}
+        `<button class="btn-ingest-all" onclick="doIngestAll()" ${disableIngest ? 'disabled' : ''}>
+            ${ingesting ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 正在入库...' :
+              uploading ? '<span class="spinner" style="width:18px;height:18px;border-width:2px"></span> 文件上传中...' :
+              '📦 全部入库'}
             <span class="count">${S.pending.length}</span>
         </button>` +
+        (S._uploadProgress ? `<div class="ingest-progress"><span class="spinner"></span> ${S._uploadProgress}</div>` : '') +
         (S._ingestProgress ? `<div class="ingest-progress"><span class="spinner"></span> ${S._ingestProgress}</div>` : '') +
         S.pending.map(f => {
         const id = f._id;
@@ -335,7 +349,7 @@ function renderPending() {
         return `
         <div class="pending-row">
             <div class="info">
-                <div class="name">${f.filename} ${status ? `<span class="file-status ${status}">${status==='ingesting'?'入库中...':status==='done'?'已入库':'解析中...'}</span>` : ''}</div>
+                <div class="name">${f.filename} ${status ? `<span class="file-status ${status}">${statusLabel(status)}</span>` : ''}</div>
                 <div class="meta">${f.text_length} 字 | 编号: ${f.metadata.standard_number || '未识别'} | 名称: ${f.metadata.standard_name || '未识别'}</div>
                 <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
                     <input value="${f.metadata.standard_number||''}" placeholder="标准编号" onchange="S.pending[findPendingIdx('${id}')].metadata.standard_number=this.value">
