@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>海军标准 RAG 智能体</title>
-<link rel="stylesheet" href="/static/style.css?v=11">
+<link rel="stylesheet" href="/static/style.css?v=12">
 </head>
 <body>
 
@@ -103,7 +103,14 @@
                 <p class="drop-icon">📂</p>
                 <p>点击或拖拽文件上传</p>
             </div>
+            <div style="display:flex;gap:10px;margin-top:10px;align-items:center">
+                <button class="btn-folder" onclick="document.getElementById('folderInput').click()">
+                    📁 上传文件夹
+                </button>
+                <span style="font-size:12px;color:var(--text3)">自动筛选 PDF / DOCX / TXT</span>
+            </div>
             <input type="file" id="fileInput" accept=".pdf,.docx,.txt" multiple hidden onchange="onFiles(this.files)">
+            <input type="file" id="folderInput" webkitdirectory hidden onchange="onFiles(this.files)">
             <div id="pendingArea"></div>
             <div id="docsArea" style="margin-top:24px"></div>
         </div>
@@ -161,7 +168,7 @@
     </section>
 </main>
 
-<script src="/static/app.js?v=11"></script>
+<script src="/static/app.js?v=12"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>if(typeof marked==='undefined'){console.warn('marked CDN failed');}</script>
 </body>

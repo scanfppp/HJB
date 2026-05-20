@@ -193,6 +193,12 @@ body{
     cursor:pointer;transition:all .15s;background:var(--white);
 }
 .drop-zone:hover{border-color:var(--brand);background:#f8f9ff}
+.btn-folder{
+    padding:8px 16px;border:1px solid var(--border);border-radius:8px;
+    background:var(--white);color:var(--text2);font-size:13px;cursor:pointer;
+    transition:all .15s;
+}
+.btn-folder:hover{border-color:var(--brand);color:var(--brand)}
 .drop-icon{font-size:36px;margin-bottom:8px}
 
 .pending-row{
