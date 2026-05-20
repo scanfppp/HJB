@@ -22,7 +22,7 @@ DB_MAX_CONN = 5
 # ============================================================
 VECTOR_DIMENSIONS = 768
 VECTOR_TABLE = "vector_st"
-MAX_DOCUMENT_BATCH_SIZE = 32  # 增大批次加速嵌入生成
+MAX_DOCUMENT_BATCH_SIZE = 9
 INDEX_TYPE = "HNSW"
 DISTANCE_TYPE = "COSINE_DISTANCE"
 
@@ -31,7 +31,7 @@ DISTANCE_TYPE = "COSINE_DISTANCE"
 # ============================================================
 LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-98a311032b374edd914f4e0f71f17d30")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen-turbo")  # turbo比plus快3倍，RAG场景足够
+LLM_MODEL = os.getenv("LLM_MODEL", "qwen-plus")
 LLM_MAX_TOKENS = 4096
 LLM_TEMPERATURE = 0.1  # 低温度保证严谨性
 
@@ -61,8 +61,8 @@ UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "u
 # ============================================================
 # 检索配置
 # ============================================================
-RETRIEVAL_TOP_K = 5
-RERANK_TOP_K = 3
+RETRIEVAL_TOP_K = 10
+RERANK_TOP_K = 5
 HYBRID_KEYWORD_WEIGHT = 0.3  # 关键词检索权重
 HYBRID_SEMANTIC_WEIGHT = 0.7  # 语义检索权重
 
