@@ -40,6 +40,7 @@ services:
       - DB_USER=postgres
       - DB_PASSWORD=pgvector
       - HF_ENDPOINT=https://hf-mirror.com
+      - EMBEDDING_MODEL=/app/models/bge-base-zh-v1.5
       - LLM_API_KEY=sk-98a311032b374edd914f4e0f71f17d30
       - LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
       - LLM_MODEL=qwen-plus

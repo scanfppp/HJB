@@ -17,11 +17,14 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     -i https://pypi.tuna.tsinghua.edu.cn/simple
 
+# 预下载嵌入模型到本地（避免运行时联网）
+RUN python -c "\
+from huggingface_hub import snapshot_download; \
+snapshot_download('BAAI/bge-base-zh-v1.5', local_dir='/app/models/bge-base-zh-v1.5'); \
+print('Model downloaded to /app/models/bge-base-zh-v1.5')"
+
 # 项目代码
 COPY . .
-
-# 嵌入模型缓存目录
-ENV HF_ENDPOINT=https://hf-mirror.com
 
 # 暴露端口
 EXPOSE 8501

@@ -7,8 +7,8 @@ import os
 import threading
 from typing import List
 
-# 国内用户使用 HuggingFace 镜像加速下载
-if not os.getenv("HF_ENDPOINT"):
+# 国内用户使用 HuggingFace 镜像加速下载（本地路径无需联网）
+if not os.getenv("HF_ENDPOINT") and not os.path.isdir(os.getenv("EMBEDDING_MODEL", "")):
     os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 from config.settings import (
