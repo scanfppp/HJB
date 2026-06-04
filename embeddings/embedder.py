@@ -47,7 +47,7 @@ def _load_model():
                 device=EMBEDDING_DEVICE,
             )
             _model_loaded = True
-            logger.info(f"嵌入模型加载完成，维度: {_model.get_sentence_embedding_dimension() if hasattr(_model, 'get_sentence_embedding_dimension') else VECTOR_DIMENSIONS}")
+            logger.info(f"嵌入模型加载完成，维度: {_model.get_sentence_embedding_dimension()}")
         except Exception as e:
             logger.error(f"嵌入模型加载失败: {e}")
             logger.error("请检查网络连接，或手动下载模型到本地后修改 EMBEDDING_MODEL_NAME 为本地路径")

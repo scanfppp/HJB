@@ -37,7 +37,7 @@ OFFLINE_MODEL_PATH = os.getenv("OFFLINE_MODEL_PATH", "")
 # ============================================================
 # 嵌入模型
 # ============================================================
-EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-base-zh-v1.5")
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL", os.path.join(os.path.dirname(os.path.dirname(__file__)), "models", "bge-base-zh-v1.5"))
 EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "cpu")
 EMBEDDING_NORMALIZE = True
 EN_EMBEDDING_MODEL_NAME = os.getenv("EN_EMBEDDING_MODEL", "BAAI/bge-base-en-v1.5")
@@ -50,6 +50,23 @@ CHUNK_OVERLAP = 100
 SUPPORTED_FORMATS = ["pdf", "docx", "txt"]
 MAX_UPLOAD_SIZE_MB = 50
 UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "uploads")
+
+# ============================================================
+# 标题识别 — 出版机构前缀过滤
+# ============================================================
+SKIP_TITLE_PREFIXES = [
+    "中华人民共和国国家标准",
+    "中华人民共和国国家军用标准",
+    "国家标准",
+    "国家军用标准",
+    "中国人民解放军海军标准",
+    "海军标准",
+]
+
+# ============================================================
+# 全文搜索
+# ============================================================
+FTS_CONFIG = "simple"
 
 # ============================================================
 # 检索

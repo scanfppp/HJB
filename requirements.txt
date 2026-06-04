@@ -24,5 +24,8 @@ pymupdf>=1.23.0
 pytesseract>=0.3.10
 Pillow>=10.0.0
 
+# --- 中文分词 ---
+jieba>=0.42.1
+
 # --- Web ---
 python-multipart>=0.0.9

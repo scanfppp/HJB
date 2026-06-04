@@ -160,32 +160,48 @@ def get_document_count_by_status() -> dict:
 # ============================================================
 
 def insert_vectors_batch(vectors_data: list) -> int:
-    """批量插入向量块（使用execute_values一次写入）"""
+    """批量插入向量块（使用execute_values一次写入，含全文搜索分词）"""
     from psycopg2.extras import execute_values
+
+    try:
+        import jieba
+        _has_jieba = True
+    except ImportError:
+        _has_jieba = False
+        logger.warning("jieba 未安装，text_search 列将留空")
+
     conn = get_connection()
     try:
         with conn.cursor() as cur:
             rows = []
             for item in vectors_data:
                 embedding_str = f"[{','.join(f'{v:.6f}' for v in item['embedding'])}]"
+                chunk_text = item["chunk_text"]
+                if _has_jieba and chunk_text:
+                    tokenized = " ".join(jieba.cut(chunk_text))
+                else:
+                    tokenized = chunk_text
                 rows.append((
                     item["document_id"],
-                    item["chunk_text"],
+                    chunk_text,
                     item["chunk_index"],
                     item.get("section_title", ""),
                     item.get("clause_number", ""),
                     item.get("chunk_type", "指导性说明"),
                     embedding_str,
                     Json(item.get("metadata", {})),
+                    tokenized,
                 ))
 
             sql = f"""
                 INSERT INTO {VECTOR_TABLE}
                     (document_id, chunk_text, chunk_index, section_title,
-                     clause_number, chunk_type, embedding, metadata)
+                     clause_number, chunk_type, embedding, metadata, text_search)
                 VALUES %s
             """
-            execute_values(cur, sql, rows, template="(%s, %s, %s, %s, %s, %s, %s::vector, %s)", page_size=len(rows))
+            execute_values(cur, sql, rows,
+                           template="(%s, %s, %s, %s, %s, %s, %s::vector, %s, to_tsvector('simple', %s))",
+                           page_size=len(rows))
             conn.commit()
         inserted = len(rows)
         logger.info(f"批量插入 {inserted} 个向量块")
@@ -279,15 +295,26 @@ def vector_search(embedding: list, top_k: int = 10, filters: dict = None) -> lis
 # ============================================================
 
 def keyword_search(keywords: str, top_k: int = 10, filters: dict = None) -> list:
-    """基于中文分词的全文关键词检索"""
+    """基于 PostgreSQL 全文搜索 + jieba 分词的关键词检索"""
+    kw = keywords.strip()
+    if not kw:
+        return []
+
+    try:
+        import jieba
+        tokenized = " ".join(jieba.cut(kw))
+    except ImportError:
+        tokenized = kw
+
     conditions = ["d.is_active = TRUE"]
     params = []
 
-    if keywords.strip():
-        # 使用 ILIKE 进行模糊匹配（支持中文）
-        like_pattern = f"%{keywords.strip()}%"
-        conditions.append("(v.chunk_text ILIKE %s OR d.standard_name ILIKE %s OR d.standard_number ILIKE %s)")
-        params.extend([like_pattern, like_pattern, like_pattern])
+    conditions.append("v.text_search @@ plainto_tsquery('simple', %s)")
+    params.append(tokenized)
+
+    like_pattern = f"%{kw}%"
+    conditions.append("(d.standard_name ILIKE %s OR d.standard_number ILIKE %s)")
+    params.extend([like_pattern, like_pattern])
 
     if filters:
         if filters.get("doc_status"):
@@ -300,19 +327,20 @@ def keyword_search(keywords: str, top_k: int = 10, filters: dict = None) -> list
             conditions.append("d.standard_number = %s")
             params.append(filters["standard_number"])
 
-    params.extend([top_k])
+    params.extend([tokenized, top_k])
 
     where = " AND ".join(conditions)
     sql = f"""
         SELECT
             v.id, v.document_id, v.chunk_text, v.chunk_index,
             v.section_title, v.clause_number, v.chunk_type,
-            0.5 AS similarity,
+            ts_rank(v.text_search, plainto_tsquery('simple', %s)) AS similarity,
             d.standard_number, d.standard_name, d.doc_status,
             d.applicable_field, d.responsible_unit
         FROM {VECTOR_TABLE} v
         JOIN documents d ON v.document_id = d.id
         WHERE {where}
+        ORDER BY similarity DESC
         LIMIT %s
     """
 

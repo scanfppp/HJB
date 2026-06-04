@@ -16,7 +16,7 @@ from config.settings import APP_TITLE, SUPPORTED_FORMATS, UPLOAD_DIR
 from database.operations import (
     list_documents, get_document, insert_document, insert_vectors_batch, log_query,
 )
-from document.parser import parse_file, save_uploaded_file
+from document.parser import parse_file, save_uploaded_file, _extract_title_from_pdf
 from document.cleaner import clean_text
 from document.chunker import chunk_text
 from document.metadata import extract_metadata_from_text, VALID_STATUSES
@@ -191,7 +191,16 @@ async def upload(file: UploadFile = File(...)):
 
         raw_text = parse_file(tmp_path)
         cleaned = clean_text(raw_text)
-        meta = extract_metadata_from_text(cleaned, file.filename)
+
+        extracted_title = ""
+        if ext == "pdf":
+            try:
+                extracted_title = _extract_title_from_pdf(tmp_path)
+                logger.info(f"标题提取: {extracted_title}")
+            except Exception as e:
+                logger.warning(f"标题提取失败: {e}")
+
+        meta = extract_metadata_from_text(cleaned, file.filename, extracted_title=extracted_title)
 
         # 缓存解析结果到 .txt 文件，避免入库时重复解析
         cache_path = tmp_path + ".txt"

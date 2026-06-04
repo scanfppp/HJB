@@ -3,7 +3,8 @@
 """
 
 import os
-from config.settings import SUPPORTED_FORMATS, UPLOAD_DIR
+from collections import defaultdict
+from config.settings import SUPPORTED_FORMATS, UPLOAD_DIR, SKIP_TITLE_PREFIXES
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,6 +42,47 @@ def _check_tesseract():
         logger.warning(f"Tesseract 配置失败: {e}")
         _tesseract_ok = False
         return False
+
+
+def _extract_title_from_pdf(file_path: str) -> str:
+    """从 PDF 首页提取大标题 — 最大字号文本"""
+    import pdfplumber
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            if not pdf.pages:
+                return ""
+            page = pdf.pages[0]
+            chars = page.chars
+            if not chars:
+                return ""
+            by_size = defaultdict(list)
+            for c in chars:
+                size_key = round(float(c.get("height", 0)), 1)
+                if size_key > 0:
+                    by_size[size_key].append(c)
+            if not by_size:
+                return ""
+            for size in sorted(by_size.keys(), reverse=True):
+                chars_at_size = sorted(by_size[size], key=lambda c: (c["top"], c["x0"]))
+                lines = []
+                current_line = []
+                current_top = None
+                for c in chars_at_size:
+                    if current_top is None or abs(c["top"] - current_top) < 3:
+                        current_line.append(c["text"])
+                        current_top = c["top"]
+                    else:
+                        lines.append("".join(current_line).strip())
+                        current_line = [c["text"]]
+                        current_top = c["top"]
+                if current_line:
+                    lines.append("".join(current_line).strip())
+                for line in lines:
+                    if len(line) >= 5 and not any(line.startswith(p) for p in SKIP_TITLE_PREFIXES):
+                        return line
+    except Exception as e:
+        logger.warning(f"标题提取失败: {e}")
+    return ""
 
 
 def parse_file(file_path: str, force_ocr: bool = False) -> str:

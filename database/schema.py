@@ -44,7 +44,8 @@ CREATE_TABLES_SQL = [
         clause_number VARCHAR(100) DEFAULT '',
         chunk_type VARCHAR(50) DEFAULT '指导性说明',
         embedding vector({VECTOR_DIMENSIONS}),
-        metadata JSONB DEFAULT '{{}}'
+        metadata JSONB DEFAULT '{{}}',
+        text_search tsvector
     );
     """,
 
@@ -81,6 +82,8 @@ CREATE_INDEXES_SQL = [
     WITH (m = 16, ef_construction = 200);
     """,
 
+    f"CREATE INDEX IF NOT EXISTS idx_vector_text_search ON {VECTOR_TABLE} USING GIN (text_search);",
+
     "CREATE INDEX IF NOT EXISTS idx_documents_status ON documents(doc_status);",
     "CREATE INDEX IF NOT EXISTS idx_documents_field ON documents(applicable_field);",
     "CREATE INDEX IF NOT EXISTS idx_documents_number ON documents(standard_number);",
@@ -109,6 +112,9 @@ def init_db():
         conn.commit()
         logger.info("所有表创建完成")
 
+        # 增量迁移：为已存在的表补充新增列
+        _run_migrations(cur, conn)
+
         # 执行建索引语句
         for sql in CREATE_INDEXES_SQL:
             try:
@@ -120,6 +126,9 @@ def init_db():
 
         conn.commit()
         logger.info("所有索引创建完成")
+
+        # 迁移：为存量数据填充 text_search 列
+        _migrate_text_search(cur, conn)
 
         # 创建默认用户
         _create_default_user(cur)
@@ -136,6 +145,58 @@ def init_db():
     finally:
         if conn:
             release_connection(conn)
+
+
+def _run_migrations(cur, conn):
+    """增量迁移：为已存在的表补充新增列"""
+    from config.settings import VECTOR_TABLE
+    try:
+        cur.execute(f"""
+            ALTER TABLE {VECTOR_TABLE}
+            ADD COLUMN IF NOT EXISTS text_search tsvector
+        """)
+        conn.commit()
+        logger.info("迁移: text_search 列已就绪")
+    except Exception as e:
+        logger.warning(f"迁移警告: {e}")
+        conn.rollback()
+
+
+def _migrate_text_search(cur, conn):
+    """为存量数据填充 text_search 列"""
+    from config.settings import VECTOR_TABLE
+    try:
+        import jieba
+    except ImportError:
+        logger.warning("jieba 未安装，跳过 text_search 存量迁移")
+        return
+
+    cur.execute(f"SELECT COUNT(*) FROM {VECTOR_TABLE} WHERE text_search IS NULL")
+    count = cur.fetchone()[0]
+    if count == 0:
+        return
+
+    logger.info(f"开始迁移 {count} 条存量数据的 text_search 列...")
+    cur.execute(f"SELECT id, chunk_text FROM {VECTOR_TABLE} WHERE text_search IS NULL")
+    all_rows = cur.fetchall()
+
+    batch_size = 500
+    updated = 0
+    for i in range(0, len(all_rows), batch_size):
+        batch = all_rows[i:i + batch_size]
+        for chunk_id, chunk_text in batch:
+            if not chunk_text:
+                continue
+            words = " ".join(jieba.cut(chunk_text))
+            cur.execute(
+                f"UPDATE {VECTOR_TABLE} SET text_search = to_tsvector('simple', %s) WHERE id = %s",
+                (words, chunk_id),
+            )
+            updated += 1
+        conn.commit()
+        logger.info(f"text_search 迁移进度: {updated}/{count}")
+
+    logger.info(f"text_search 存量迁移完成，共更新 {updated} 条")
 
 
 def _create_default_user(cur):

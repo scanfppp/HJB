@@ -23,7 +23,7 @@ REQUIRED_FIELDS = [
 VALID_STATUSES = ["现行有效", "废止", "修订中"]
 
 
-def extract_metadata_from_text(text: str, file_name: str = "") -> dict:
+def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: str = "") -> dict:
     """从文本中自动提取标准元数据，优先从文档头部匹配"""
     metadata = {
         "standard_number": "",
@@ -45,13 +45,14 @@ def extract_metadata_from_text(text: str, file_name: str = "") -> dict:
     #    优先匹配紧跟标题文字的编号（行首或紧接中文前）
     number = _extract_standard_number_from_header(header_clean)
     if not number:
-        number = _extract_standard_number_from_header(text[:1500])
+        number = _extract_standard_number_from_header(text[:3000])
     metadata["standard_number"] = number
 
-    # 2. 从文档头部提取标准名称
-    #    通常在编号后面：HJB 590B-2025 舰船舰载软件质量监督通用要求
-    #    或者是单独一行的大标题
-    metadata["standard_name"] = _extract_standard_name(text, header_clean, metadata["standard_number"])
+    # 2. 标准名称：优先使用外部传入的标题（如PDF最大字号提取），否则正则提取
+    if extracted_title:
+        metadata["standard_name"] = extracted_title
+    else:
+        metadata["standard_name"] = _extract_standard_name(text, header_clean, metadata["standard_number"])
 
     # 3. 从文件名补充
     if not metadata["standard_name"] and file_name:
@@ -75,23 +76,31 @@ def extract_metadata_from_text(text: str, file_name: str = "") -> dict:
 
 
 def _extract_standard_number_from_header(header: str) -> str:
-    """从文档头部提取标准编号，只匹配头部避免前言中的引用干扰"""
+    """从文档头部提取标准编号"""
     patterns = [
-        # HJB 590B-2025 或 HJB 590B—2025（中文破折号）
-        r'(HJB\s*\d+[A-Za-z]?\s*[—\-–]\s*\d{4})',
-        # GJB 4072B-2023
-        r'(GJB\s*\d+[A-Za-z]?\s*[—\-–]\s*\d{4})',
-        # CB xxx-xxxx, GB/T xxx-xxxx 等
-        r'([A-Z]{2,5}(?:/[A-Z])?\s*\d+[A-Za-z]?\s*[—\-–]\s*\d{2,4})',
-        # 纯编号形式: Q/JB xxx-xxxx
-        r'([A-Z]/[A-Z]{2,5}\s*\d+[A-Za-z]?\s*[—\-–]\s*\d{2,4})',
+        # HJB 590B-2025 或 HJB 590B—2025（带年份）
+        r'(HJB\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{4})',
+        # GJB 4072B-2023, GJB 150.1A-2009（带点号+字母+年份）
+        r'(GJB[/A-Za-z]*\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{4})',
+        # GB/T 1.1-2020, CB/T 4000-2005 等
+        r'([A-Z]{2,6}(?:/[A-Z](?:\s*[A-Z])?)?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{2,4})',
+        # Q/JB xxx-xxxx, Q/HJB xxx-xxxx
+        r'([A-Z]/[A-Z]{2,5}\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{2,4})',
+        # 标签式: "标准编号：GJB 150.1A-2009"
+        r'(?:标准编号|标准号|编号|文件编号)[：:\s]*([A-Z]{2,6}(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]?\s*\d{0,4})',
+        # 无年份后缀: HJB 590B, GJB 150A
+        r'([HG]JB[/A-Za-z]*\s*\d+(?:\.\d+)?[A-Za-z]?)',
+        # 其他军标: WJ, QJ, HB, SJ, CB 等
+        r'([WQHS]J\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]?\s*\d{0,4})',
     ]
     for pat in patterns:
         m = re.search(pat, header)
         if m:
-            # 标准化：把各种破折号统一为 -
-            num = m.group(1).replace('—', '-').replace('–', '-')
-            return num.strip()
+            num = m.group(1).strip()
+            num = num.replace('—', '-').replace('–', '-')
+            num = num.rstrip('-').strip()
+            if re.search(r'\d', num) and len(num) >= 3:
+                return num
     return ""
 
 
