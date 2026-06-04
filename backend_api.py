@@ -66,7 +66,7 @@ async def chat(req: Request):
             doc_status=doc_status if doc_status else None,
             applicable_field=applicable_field if applicable_field else None,
         )
-        return hybrid_search(query=question, top_k=10, filters=filters)
+        return hybrid_search(query=question, top_k=5, filters=filters)
 
     search_results = await loop.run_in_executor(None, do_search)
 
@@ -82,10 +82,9 @@ async def chat(req: Request):
     sources = []
     for i, r in enumerate(search_results, 1):
         context_parts.append(
-            f"[文档{i}] 【{r.get('chunk_type', '')}】\n"
-            f"标准: {r.get('standard_number', '')} {r.get('standard_name', '')}\n"
-            f"章节: {r.get('section_title', '')} {r.get('clause_number', '')}\n"
-            f"内容: {r.get('chunk_text', '')}\n"
+            f"[来源{i}] {r.get('standard_name', '')} ({r.get('standard_number', '')})\n"
+            f"{r.get('section_title', '')} {r.get('clause_number', '')}\n"
+            f"{r.get('chunk_text', '')}\n"
         )
         sources.append({
             "standard_number": r.get("standard_number", ""),
@@ -94,6 +93,7 @@ async def chat(req: Request):
             "clause_number": r.get("clause_number", ""),
             "chunk_type": r.get("chunk_type", ""),
             "similarity": round(r.get("similarity", 0), 4),
+            "source_display": r.get("source_display", ""),
         })
 
     context = "\n---\n".join(context_parts)

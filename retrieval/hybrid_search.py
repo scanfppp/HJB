@@ -13,6 +13,42 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def _make_source_display(r: Dict) -> str:
+    """构造可读的来源显示文本，清洗乱码章节标题"""
+    std_name = (r.get("standard_name") or "").strip()
+    std_num = (r.get("standard_number") or "").strip()
+    section = (r.get("section_title") or "").strip()
+    clause = (r.get("clause_number") or "").strip()
+
+    # 清洗章节标题：去掉连续点号（目录导引符）、过长空白
+    import re
+    section = re.sub(r'\.{3,}', '', section)  # 去掉连续点号
+    section = re.sub(r'\s{2,}', ' ', section)  # 压缩空白
+    section = section.strip(' .…·-—')
+
+    # 统计中文字符数，少于3个视为无意义标题
+    chinese_chars = len(re.findall(r'[一-鿿]', section))
+
+    # 若清洗后章节信息为空、过短或无中文，回退到标���名称
+    if len(section) < 3 or chinese_chars < 3:
+        base = f"《{std_name}》" if std_name else f"[{std_num or 'N/A'}]"
+        if clause and len(clause) >= 2:
+            return f"{base} {clause}"
+        return base
+
+    # 组合：名称 + 章节 + 条款
+    parts = []
+    if std_name:
+        parts.append(f"《{std_name}》")
+    elif std_num:
+        parts.append(f"[{std_num}]")
+    parts.append(section)
+    if clause and clause != section:
+        parts.append(clause)
+
+    return " ".join(parts)
+
+
 def hybrid_search(
     query: str,
     top_k: int = 10,
@@ -91,6 +127,7 @@ def hybrid_search(
             "applicable_field": r.get("applicable_field", ""),
             "responsible_unit": r.get("responsible_unit", ""),
             "source_ref": f"[{r.get('standard_number', 'N/A')}] {r.get('section_title', '')} {r.get('clause_number', '')}".strip(),
+            "source_display": _make_source_display(r),
         })
 
     logger.info(f"混合检索完成: 返回{len(formatted)}条结果")

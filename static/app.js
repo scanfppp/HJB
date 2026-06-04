@@ -187,9 +187,12 @@ function renderMsgs() {
         let html = `<div class="msg ${m.role}"><div class="msg-bubble">`;
         html += isUser ? escHtml(m.content) : mdRender(m.content);
         if (m.sources && m.sources.length) {
-            html += `<div class="msg-sources"><span class="src-icon">📎</span> ${m.sources.map(s =>
-                `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
-            ).join('；')}</div>`;
+            const maxShow = 5;
+            const shown = m.sources.slice(0, maxShow);
+            const more = m.sources.length > maxShow ? ` 等${m.sources.length}个来源` : '';
+            html += `<div class="msg-sources"><span class="src-icon">📎</span> ${shown.map(s =>
+                s.source_display || `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
+            ).join('；')}${more}</div>`;
         }
         html += '</div></div>';
         return html;
@@ -242,9 +245,12 @@ function finalizeLastBubble(content, sources) {
         if (sources && sources.length) {
             const srcDiv = document.createElement('div');
             srcDiv.className = 'msg-sources';
-            srcDiv.innerHTML = `<span>📎</span> ` + sources.map(s =>
-                `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
-            ).join('；');
+            const maxShow = 5;
+            const shown = sources.slice(0, maxShow);
+            const more = sources.length > maxShow ? ` 等${sources.length}个来源` : '';
+            srcDiv.innerHTML = `<span>📎</span> ` + shown.map(s =>
+                s.source_display || `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
+            ).join('；') + more;
             last.appendChild(srcDiv);
         }
         scrollDown();

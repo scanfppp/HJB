@@ -75,8 +75,15 @@ def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: 
     return metadata
 
 
+# 所有标准文档的"规范性引用文件"章节都会引用的元标准
+_META_STANDARDS = {
+    'GB/T 1.1', 'GB/T1.1', 'GB/T 1.2', 'GB/T1.2',
+    'GB/T 1', 'GB/T1',
+}
+
+
 def _extract_standard_number_from_header(header: str) -> str:
-    """从文档头部提取标准编号"""
+    """从文档头部提取标准编号 — 收集所有候选，按位置+上下文评分选最优"""
     patterns = [
         # HJB 590B-2025 或 HJB 590B—2025（带年份）
         r'(HJB\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{4})',
@@ -93,15 +100,47 @@ def _extract_standard_number_from_header(header: str) -> str:
         # 其他军标: WJ, QJ, HB, SJ, CB 等
         r'([WQHS]J\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]?\s*\d{0,4})',
     ]
-    for pat in patterns:
-        m = re.search(pat, header)
-        if m:
+
+    # 收集所有候选: (位置, 编号, 模式优先级)
+    candidates = []
+    seen = set()
+    for pi, pat in enumerate(patterns):
+        for m in re.finditer(pat, header):
             num = m.group(1).strip()
             num = num.replace('—', '-').replace('–', '-')
             num = num.rstrip('-').strip()
-            if re.search(r'\d', num) and len(num) >= 3:
-                return num
-    return ""
+            key = num.replace(' ', '')
+            if re.search(r'\d', num) and len(num) >= 3 and key not in seen:
+                seen.add(key)
+                candidates.append((m.start(), num, pi))
+
+    if not candidates:
+        return ""
+
+    # 只有一个候选，直接返回
+    if len(candidates) == 1:
+        return candidates[0][1]
+
+    # 评分：分数越低越好
+    def _score(pos, num, pi):
+        s = 0
+        # 位置分：越靠前越好（文档自身编号通常在封面）
+        s += pos
+        # 元标准罚分：GB/T 1.1 等（但有其他候选时才罚）
+        if num.replace(' ', '') in _META_STANDARDS:
+            s += 500
+        # 密度罚分：200字内其他标准号越多 → 越像引用章节
+        nearby = sum(1 for p, n, _ in candidates
+                     if abs(p - pos) < 200 and n != num)
+        s += nearby * 80
+        # 模式优先级：HJB/GJB 模式（pi=0,1）优先于通用模式
+        s += pi * 30
+        return s
+
+    candidates.sort(key=lambda c: _score(*c))
+    best = candidates[0][1]
+    logger.info(f"标准编号候选{len(candidates)}个，选定: {best}")
+    return best
 
 
 def _extract_standard_name(text: str, header: str, std_number: str) -> str:
