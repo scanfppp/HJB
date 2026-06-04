@@ -18,6 +18,48 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
+def build_gap_messages(text: str, standard_name: str, search_results: list) -> list:
+    """构建标准分析的 messages 列表，供流式端点使用"""
+    context_parts = []
+    for r in search_results:
+        context_parts.append(
+            f"【{r.get('standard_number', '')} {r.get('standard_name', '')}】\n"
+            f"内容: {r.get('chunk_text', '')[:1000]}\n"
+        )
+
+    related_content = "\n---\n".join(context_parts) if context_parts else "暂无关联标准"
+    name = standard_name or "用户提交内容"
+
+    truncated = len(text) > 8000 or len(related_content) > 8000
+    if truncated:
+        logger.warning(f"标准分析: 文本被截断 (原文{len(text)}字/关联{len(related_content)}字)")
+
+    prompt = GAP_ANALYSIS_PROMPT.format(
+        standard_number="",
+        standard_name=name,
+        applicable_field="",
+        target_content=text[:8000],
+        related_content=related_content[:8000],
+    )
+    return [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"请对《{name}》进行标准化分析"},
+    ]
+
+
+def build_gap_related_standards(search_results: list) -> list:
+    """从检索结果构建关联标准摘要列表"""
+    return [
+        {
+            "standard_number": r.get("standard_number", ""),
+            "standard_name": r.get("standard_name", ""),
+            "doc_status": r.get("doc_status", ""),
+            "similarity": r.get("similarity", 0),
+        }
+        for r in search_results
+    ]
+
+
 def analyze_text(text: str, standard_name: str = "") -> Dict:
     """
     标准分析函数（基于任意文本，无需入库）

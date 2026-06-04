@@ -12,8 +12,9 @@ DB_PORT = int(os.getenv("DB_PORT", "5433"))
 DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "pgvector")
-DB_MIN_CONN = 1
-DB_MAX_CONN = 5
+DB_MIN_CONN = 3
+DB_MAX_CONN = 20
+DB_CONN_TIMEOUT = 5  # 获取连接超时秒数
 
 # ============================================================
 # 向量库

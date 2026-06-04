@@ -7,8 +7,11 @@ import psycopg2
 from psycopg2 import pool
 from config.settings import (
     DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD,
-    DB_MIN_CONN, DB_MAX_CONN,
+    DB_MIN_CONN, DB_MAX_CONN, DB_CONN_TIMEOUT,
 )
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 _connection_pool = None
 
@@ -30,8 +33,29 @@ def get_connection_pool() -> pool.ThreadedConnectionPool:
 
 
 def get_connection():
-    """从连接池获取一个连接"""
-    return get_connection_pool().getconn()
+    """从连接池获取一个连接，带超时"""
+    import threading
+
+    pool_obj = get_connection_pool()
+    result = [None]
+    error = [None]
+
+    def _get():
+        try:
+            result[0] = pool_obj.getconn()
+        except Exception as e:
+            error[0] = e
+
+    t = threading.Thread(target=_get, daemon=True)
+    t.start()
+    t.join(timeout=DB_CONN_TIMEOUT)
+
+    if t.is_alive():
+        logger.error(f"数据库连接池已满，{DB_CONN_TIMEOUT}秒内无法获取连接")
+        raise RuntimeError(f"数据库连接池已满，请稍后重试")
+    if error[0]:
+        raise error[0]
+    return result[0]
 
 
 def release_connection(conn):

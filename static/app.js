@@ -8,6 +8,11 @@ const S = {
     chatMode: 'chat',
     gapFile: null,
     abortController: null,
+    optStyle: 'standard',
+    optIntensity: 'medium',
+    optLength: 'keep',
+    lastOptimized: null,
+    optimizingComplete: false,
 };
 
 /* ====== init ====== */
@@ -20,7 +25,30 @@ document.addEventListener('DOMContentLoaded', () => {
     renderHistory();
     switchPanel('chat');
     loadDocs();
+    initOptimizePills();
 });
+
+function initOptimizePills() {
+    ['stylePills', 'intensityPills', 'lengthPills'].forEach(id => {
+        const container = document.getElementById(id);
+        if (!container) return;
+        container.addEventListener('click', e => {
+            const pill = e.target.closest('.opt-pill');
+            if (!pill) return;
+            container.querySelectorAll('.opt-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            const val = pill.dataset.val;
+            if (id === 'stylePills') S.optStyle = val;
+            else if (id === 'intensityPills') S.optIntensity = val;
+            else if (id === 'lengthPills') S.optLength = val;
+        });
+    });
+    // 继续调整按钮事件
+    const continueBtn = document.getElementById('continueBtn');
+    if (continueBtn) {
+        continueBtn.addEventListener('click', continueOptimize);
+    }
+}
 
 /* ====== panel ====== */
 function switchPanel(name) {
@@ -362,18 +390,92 @@ async function sendChat(q) {
     else { finalizeLastBubble('抱歉，未能获取到回复，请重试。', []); }
 }
 
-async function sendOptimize(text) {
+async function sendOptimize(text, isContinue) {
     S.abortController = new AbortController();
-    updateLastBubble('正在按海军文书规范优化中...');
+    updateLastBubble(isContinue ? '正在继续调整...' : '正在按海军文书规范优化中...');
+
+    const body = isContinue ? {
+        previous_result: S.lastOptimized,
+        adjustment: text,
+    } : {
+        text,
+        style: S.optStyle,
+        intensity: S.optIntensity,
+        length: S.optLength,
+    };
+
     const res = await fetch('/api/optimize', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(body),
         signal: S.abortController.signal,
     });
-    const d = await res.json();
-    if (d.error) { finalizeLastBubble(d.error, []); return; }
-    const result = `### 优化结果\n\n${d.optimized || ''}`;
-    finalizeLastBubble(result, []);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let full = '', changes = null;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const d = line.slice(6);
+            if (d === '[DONE]') continue;
+            try {
+                const p = JSON.parse(d);
+                if (p.type === 'text') { full += p.content; updateLastBubble(full); }
+                else if (p.type === 'phase') { updateLastBubble(p.message || full); }
+                else if (p.type === 'cleaned_text') { full = p.content; updateLastBubble(full); }
+                else if (p.type === 'changes') { changes = p; }
+                else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
+            } catch (e) {}
+        }
+    }
+    if (full) {
+        let result = isContinue ? `### 调整结果\n\n${full}` : `### 优化结果\n\n${full}`;
+        if (changes && (changes.terminology_changes || changes.structural_changes || changes.format_changes || changes.correction_count)) {
+            result += '\n\n---\n### 变更摘要\n';
+            if (changes.correction_count) result += `- 基础纠错: ${changes.correction_count}处\n`;
+            if (changes.terminology_changes) result += `- 术语统一: ${changes.terminology_changes}处\n`;
+            if (changes.structural_changes) result += `- 结构调整: ${changes.structural_changes}处\n`;
+            if (changes.format_changes) result += `- 格式规整: ${changes.format_changes}处\n`;
+            result += `\n${changes.summary || ''}`;
+        }
+        finalizeLastBubble(result, []);
+        S.lastOptimized = full;
+        S.optimizingComplete = true;
+        // 显示继续调整行
+        const continueRow = document.getElementById('continueRow');
+        if (continueRow) {
+            continueRow.classList.add('show');
+            document.getElementById('continueInput').value = '';
+            document.getElementById('continueInput').focus();
+        }
+    } else {
+        finalizeLastBubble('优化失败，请重试。', []);
+    }
+}
+
+function continueOptimize() {
+    const input = document.getElementById('continueInput');
+    const q = input.value.trim();
+    if (!q || S.streaming) return;
+    S.msgs.push({ role: 'user', content: '继续调整: ' + q });
+    S.msgs.push({ role: 'assistant', content: '', sources: [] });
+    renderMsgs();
+    document.getElementById('welcomeBlock').style.display = 'none';
+    S.streaming = true;
+    document.getElementById('sendBtn').disabled = true;
+    document.getElementById('stopBtn').style.display = 'flex';
+    sendOptimize(q, true).then(() => {
+        S.streaming = false;
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('stopBtn').style.display = 'none';
+        saveConv();
+    }).catch(e => {
+        if (e.name !== 'AbortError') finalizeLastBubble('调整失败: ' + e.message, []);
+        S.streaming = false;
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('stopBtn').style.display = 'none';
+    });
 }
 
 async function sendGap(q) {
@@ -397,14 +499,41 @@ async function sendGap(q) {
         body,
         signal: S.abortController.signal,
     });
-    const d = await res.json();
-    if (d.error) { finalizeLastBubble(d.error, []); return; }
-    let result = '';
-    if (d.related_standards && d.related_standards.length) {
-        result += '### 关联标准\n' + d.related_standards.map(s => `- [${s.standard_number}] ${s.standard_name}`).join('\n') + '\n\n';
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let full = '', relatedStandards = [];
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const d = line.slice(6);
+            if (d === '[DONE]') continue;
+            try {
+                const p = JSON.parse(d);
+                if (p.type === 'text') { full += p.content; updateLastBubble(full); }
+                else if (p.type === 'phase') { updateLastBubble(p.message || full); }
+                else if (p.type === 'related_standards') {
+                    relatedStandards = p.standards || [];
+                    if (relatedStandards.length) {
+                        let preview = '### 检索到关联标准\n' + relatedStandards.map(s => `- [${s.standard_number}] ${s.standard_name}`).join('\n') + '\n\n---\n';
+                        updateLastBubble(preview);
+                    }
+                }
+                else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
+            } catch (e) {}
+        }
     }
-    result += '### 分析报告\n' + (d.gap_report || d.report || '分析完成');
-    finalizeLastBubble(result, []);
+    if (full) {
+        let result = '';
+        if (relatedStandards.length) {
+            result += '### 关联标准\n' + relatedStandards.map(s => `- [${s.standard_number}] ${s.standard_name}`).join('\n') + '\n\n';
+        }
+        result += '### 分析报告\n' + full;
+        finalizeLastBubble(result, []);
+    } else {
+        finalizeLastBubble('分析失败，请重试。', []);
+    }
 }
 
 async function sendCompliance(text) {
@@ -415,10 +544,47 @@ async function sendCompliance(text) {
         body: JSON.stringify({ text }),
         signal: S.abortController.signal,
     });
-    const d = await res.json();
-    if (d.error) { finalizeLastBubble(d.error, []); return; }
-    const result = `### 合规校验报告\n\n对照片 ${d.standards_count || 0} 条标准条款\n\n${d.report || ''}`;
-    finalizeLastBubble(result, []);
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let full = '', score = null, sources = [], standardsCount = 0;
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        for (const line of dec.decode(value).split('\n')) {
+            if (!line.startsWith('data: ')) continue;
+            const d = line.slice(6);
+            if (d === '[DONE]') continue;
+            try {
+                const p = JSON.parse(d);
+                if (p.type === 'text') { full += p.content; updateLastBubble(full); }
+                else if (p.type === 'standards_count') {
+                    standardsCount = p.count;
+                    updateLastBubble(p.message || full);
+                }
+                else if (p.type === 'sources') { sources = p.sources; }
+                else if (p.type === 'score') { score = p.score; }
+                else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
+            } catch (e) {}
+        }
+    }
+    if (full) {
+        let result = `### 合规校验报告\n\n`;
+        if (score && score.total) {
+            result += renderComplianceScore(score);
+        }
+        result += `\n${full}`;
+        finalizeLastBubble(result, sources);
+    } else {
+        finalizeLastBubble('校验失败，请重试。', []);
+    }
+}
+
+function renderComplianceScore(s) {
+    const pct = s.percentage || 0;
+    let bar = '<div class="score-bar"><div class="score-fill" style="width:' + pct + '%"></div></div>';
+    return '| 总检查项 | 符合 | 部分符合 | 不符合 | 合规率 |\n'
+        + '|:---:|:---:|:---:|:---:|:---:|\n'
+        + '| ' + (s.total || 0) + ' | ' + (s.compliant || 0) + ' | ' + (s.partial || 0) + ' | ' + (s.non_compliant || 0) + ' | ' + pct + '% |\n';
 }
 
 function stopGeneration() {
@@ -441,14 +607,18 @@ function stopGeneration() {
 function setMode(mode) {
     S.chatMode = mode;
     S.gapFile = null;
+    S.lastOptimized = null;
+    S.optimizingComplete = false;
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     document.querySelector(`.mode-btn[data-mode="${mode}"]`).classList.add('active');
     const attachBtn = document.getElementById('attachBtn');
     attachBtn.classList.toggle('show', mode === 'gap');
+    document.getElementById('optimizePanel').style.display = mode === 'optimize' ? 'block' : 'none';
+    document.getElementById('continueRow').classList.remove('show');
     const input = document.getElementById('chatInput');
-    const placeholders = {chat:'请输入您的问题...', optimize:'直接发送需要优化的文本...', gap:'输入问题，或上传文档...', compliance:'直接发送需要校验的制度/方案内容...'};
+    const placeholders = {chat:'请输入您的问题...', optimize:'粘贴需要优化的文本，选择文风强度后发送...', gap:'输入问题，或上传文档...', compliance:'直接发送需要校验的制度/方案内容...'};
     input.placeholder = placeholders[mode] || '输入...';
-    document.getElementById('footHint').textContent = mode === 'gap' ? '🔬 可上传文档或直接输入问题' : mode === 'optimize' ? '✏️ 粘贴文本后发送即可优化' : mode === 'compliance' ? '✅ 粘贴制度内容后发送即可校验' : '💬 Enter 发送，Shift+Enter 换行';
+    document.getElementById('footHint').textContent = mode === 'gap' ? '🔬 可上传文档或直接输入问题' : mode === 'optimize' ? '✏️ 选择文风/强度/篇幅，粘贴文本后发送' : mode === 'compliance' ? '✅ 粘贴制度内容后发送即可校验' : '💬 Enter 发送，Shift+Enter 换行';
     input.focus();
 }
 

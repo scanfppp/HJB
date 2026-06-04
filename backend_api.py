@@ -3,7 +3,7 @@
 提供 RESTful + SSE 流式接口
 """
 
-import sys, os, json, time, asyncio
+import sys, os, json, time, asyncio, concurrent.futures
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, UploadFile, File, Request
@@ -23,9 +23,12 @@ from document.metadata import extract_metadata_from_text, VALID_STATUSES
 from embeddings.embedder import embed_texts
 from retrieval.hybrid_search import hybrid_search
 from retrieval.filter import build_search_filters
-from rag.optimizer import optimize_text
-from rag.gap_analyzer import analyze_gaps, analyze_text
-from rag.compliance import check_compliance
+from rag.optimizer import (
+    optimize_text, build_optimize_messages, build_continue_optimize_messages,
+    compute_changes, clean_output,
+)
+from rag.gap_analyzer import analyze_gaps, analyze_text, build_gap_messages, build_gap_related_standards
+from rag.compliance import check_compliance, build_compliance_messages, build_compliance_sources, parse_compliance_score
 from llm.client import chat_stream
 from config.prompts import RAG_QA_SYSTEM_PROMPT
 from utils.logger import get_logger
@@ -37,6 +40,89 @@ app = FastAPI(title=APP_TITLE, version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# 专用线程池，避免阻塞 FastAPI 默认线程池
+_executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
+
+
+def sse_response(messages: list, extra_events: list = None,
+                  post_stream=None, on_complete=None) -> StreamingResponse:
+    """
+    SSE 流式响应工厂 — 将 LLM 流式输出包装为 StreamingResponse。
+
+    - messages: LLM 会话消息列表
+    - extra_events: [(type, data_dict), ...] 在 LLM 文本之前发送的额外事件
+    - post_stream(full_response) -> [(type, data_dict), ...] 文本流结束后、[DONE]前发送的额外事件
+    - on_complete(full_response): 流完成后的回调（用于日志记录等）
+    """
+    loop = asyncio.get_event_loop()
+    queue = asyncio.Queue()
+
+    def stream_in_thread():
+        try:
+            for chunk in chat_stream(messages):
+                try:
+                    queue.put_nowait(("text", chunk))
+                except asyncio.QueueFull:
+                    pass
+        except Exception as e:
+            logger.error(f"LLM stream error: {e}")
+            try:
+                queue.put_nowait(("error", str(e)))
+            except asyncio.QueueFull:
+                pass
+        finally:
+            queue.put_nowait(("done", None))
+
+    async def generate():
+        if extra_events:
+            for evt_type, evt_data in extra_events:
+                yield f"data: {json.dumps({'type': evt_type, **evt_data})}\n\n"
+
+        task = loop.run_in_executor(_executor, stream_in_thread)
+        full_response = ""
+        try:
+            while True:
+                try:
+                    msg_type, data = await asyncio.wait_for(queue.get(), timeout=120)
+                except asyncio.TimeoutError:
+                    yield f"data: {json.dumps({'type': 'error', 'content': '请求超时，请重试'})}\n\n"
+                    break
+
+                if msg_type == "done":
+                    break
+                elif msg_type == "text":
+                    full_response += data
+                    yield f"data: {json.dumps({'type': 'text', 'content': data})}\n\n"
+                elif msg_type == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'content': f'LLM调用失败: {data}'})}\n\n"
+                    break
+
+            # 文本流结束后，发送后处理事件（如变更摘要、评分等）
+            if post_stream and full_response:
+                try:
+                    for evt_type, evt_data in post_stream(full_response):
+                        yield f"data: {json.dumps({'type': evt_type, **evt_data})}\n\n"
+                except Exception as e:
+                    logger.error(f"post_stream error: {e}")
+
+            yield "data: [DONE]\n\n"
+            if on_complete and full_response:
+                try:
+                    on_complete(full_response)
+                except Exception as e:
+                    logger.error(f"on_complete error: {e}")
+
+        except (asyncio.CancelledError, GeneratorExit):
+            logger.info("Client disconnected during streaming")
+        except Exception as e:
+            logger.error(f"SSE error: {e}")
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 # ==================== 静态文件 ====================
 @app.get("/")
@@ -312,41 +398,97 @@ async def get_docs(status: str = "", field: str = "", keyword: str = ""):
 # ==================== 文本优化 ====================
 @app.post("/api/optimize")
 async def api_optimize(req: Request):
+    """
+    文本智能优化（V2 SSR流式）— 支持文风/强度/篇幅/继续调整
+    参数: {text, style, intensity, length, previous_result, adjustment}
+    """
     data = await req.json()
     text = data.get("text", "").strip()
-    if not text:
+    style = data.get("style", "standard")
+    intensity = data.get("intensity", "medium")
+    length = data.get("length", "keep")
+    previous_result = data.get("previous_result", "").strip()
+    adjustment = data.get("adjustment", "").strip()
+
+    # 二次调整模式
+    if previous_result and adjustment:
+        messages = build_continue_optimize_messages(previous_result, adjustment)
+        phase_message = f"正在按「{adjustment[:50]}」继续调整..."
+        log_prefix = f"[继续调整] {adjustment[:200]}"
+    elif text:
+        messages = build_optimize_messages(text, style=style, intensity=intensity, length=length)
+        phase_message = "正在按海军文书规范优化中..."
+        log_prefix = f"[文本优化] {text[:200]}"
+    else:
         return JSONResponse({"error": "文本不能为空"}, status_code=400)
-    try:
-        result = optimize_text(text)
-        return JSONResponse({
-            "optimized": result.get("optimized", ""),
-            "changes_summary": result.get("changes_summary", ""),
-        })
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+
+    def post_stream(full_response):
+        cleaned = clean_output(full_response)
+        base = previous_result if previous_result else text
+        changes = compute_changes(base, cleaned, intensity=intensity)
+        events = [("changes", changes)]
+        # 如果清洗后与原输出不同，发送清洗版让前端更新气泡
+        if cleaned != full_response:
+            events.append(("cleaned_text", {"content": cleaned}))
+        return events
+
+    def on_complete(full_response):
+        try:
+            log_query("user", log_prefix, full_response[:500], "优化", None)
+        except Exception:
+            pass
+
+    return sse_response(
+        messages=messages,
+        extra_events=[("phase", {"phase": "optimizing", "message": phase_message})],
+        post_stream=post_stream,
+        on_complete=on_complete,
+    )
 
 
 # ==================== 标准分析 ====================
 @app.post("/api/gap-text")
 async def api_gap_text(req: Request):
-    """标准分析：接收文字或上传文件内容，检索关联标准给出分析"""
+    """标准分析：接收文字或上传文件内容，检索关联标准给出分析（SSE流式）"""
     data = await req.json()
     text = data.get("text", "").strip()
     standard_name = data.get("standard_name", "")
     if not text:
         return JSONResponse({"error": "请提供标准内容或名称"}, status_code=400)
-    try:
-        from rag.gap_analyzer import analyze_text
-        result = analyze_text(text, standard_name)
-        return JSONResponse({
-            "gap_report": result.get("gap_report", ""),
-            "related_standards": result.get("related_standards", []),
-        })
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+
+    loop = asyncio.get_event_loop()
+
+    def do_search():
+        return hybrid_search(
+            query=text if not standard_name else standard_name,
+            top_k=10,
+        )
+
+    search_results = await loop.run_in_executor(_executor, do_search)
+    related_standards = build_gap_related_standards(search_results)
+    messages = build_gap_messages(text, standard_name, search_results)
+
+    extra_events = [
+        ("phase", {"phase": "retrieving", "message": f"检索到 {len(search_results)} 条关联标准，正在对比分析..."}),
+        ("related_standards", {"standards": related_standards}),
+    ]
+
+    def on_complete(full_response):
+        try:
+            log_query("user", f"[标准分析] {text[:200]}", full_response[:500], "分析", related_standards)
+        except Exception:
+            pass
+
+    return sse_response(
+        messages=messages,
+        extra_events=extra_events,
+        on_complete=on_complete,
+    )
+
 
 @app.post("/api/gap-analysis")
 async def api_gap(req: Request):
+    """标准分析（按库中文档ID），同步返回（保持向后兼容）"""
     data = await req.json()
     doc_id = data.get("doc_id", 0)
     if not doc_id:
@@ -369,15 +511,46 @@ async def api_compliance(req: Request):
     field = data.get("field", "")
     if not text:
         return JSONResponse({"error": "请提供制度/方案内容"}, status_code=400)
-    try:
-        result = check_compliance(text, applicable_field=field if field else None)
-        return JSONResponse({
-            "report": result.get("report", ""),
-            "sources": result.get("sources", []),
-            "standards_count": result.get("standards_count", 0),
-        })
-    except Exception as e:
-        return JSONResponse({"error": str(e)}, status_code=500)
+
+    loop = asyncio.get_event_loop()
+
+    def do_search():
+        filters = None
+        if field and field.strip():
+            filters = {"applicable_field": field.strip()}
+        return hybrid_search(query=text[:500], top_k=10, filters=filters)
+
+    search_results = await loop.run_in_executor(_executor, do_search)
+
+    if not search_results:
+        async def empty_gen():
+            yield f"data: {json.dumps({'type': 'error', 'content': '未能检索到相关的海军标准条款，无法进行合规校验。请确认已入库相关领域的标准文档。'})}\n\n"
+            yield "data: [DONE]\n\n"
+        return StreamingResponse(empty_gen(), media_type="text/event-stream")
+
+    sources = build_compliance_sources(search_results)
+    messages = build_compliance_messages(text, search_results)
+
+    def post_stream(full_response):
+        score = parse_compliance_score(full_response)
+        events = [("sources", {"sources": sources})]
+        if score:
+            events.append(("score", {"score": score}))
+        return events
+
+    def on_complete(full_response):
+        try:
+            log_query("user", f"[合规自查] {text[:200]}", full_response[:500], "合规", sources)
+        except Exception:
+            pass
+
+    return sse_response(
+        messages=messages,
+        extra_events=[("standards_count", {"count": len(search_results),
+                                           "message": f"正在对照 {len(search_results)} 条标准条款逐条校验..."})],
+        post_stream=post_stream,
+        on_complete=on_complete,
+    )
 
 
 # ==================== 检索 ====================

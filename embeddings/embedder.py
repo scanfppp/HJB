@@ -5,6 +5,7 @@
 
 import os
 import threading
+from functools import lru_cache
 from typing import List
 
 # 国内用户使用 HuggingFace 镜像加速下载（本地路径无需联网）
@@ -83,9 +84,27 @@ def embed_single(text: str) -> List[float]:
     return embed_texts([text])[0]
 
 
+@lru_cache(maxsize=512)
+def _cached_embed(query: str) -> tuple:
+    """缓存的查询向量化，返回 tuple 以支持 hash"""
+    _load_model()
+    vec = _model.encode(query, normalize_embeddings=EMBEDDING_NORMALIZE, show_progress_bar=False)
+    return tuple(vec.tolist())
+
+
 def embed_query(query: str) -> List[float]:
-    """查询向量化（单条，CPU友好）"""
-    return embed_single(query)
+    """查询向量化（单条，带LRU缓存）"""
+    return list(_cached_embed(query))
+
+
+# 缓存统计
+def get_embed_cache_info() -> dict:
+    return {
+        "hits": _cached_embed.cache_info().hits,
+        "misses": _cached_embed.cache_info().misses,
+        "currsize": _cached_embed.cache_info().currsize,
+        "maxsize": _cached_embed.cache_info().maxsize,
+    }
 
 
 def load_english_model():

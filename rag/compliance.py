@@ -1,8 +1,10 @@
 """
 合规自查 — 用户提交制度/方案对照标准校验合规性
+支持流式输出和合规评分看板
 """
 
-from typing import Dict, Optional
+import json, re
+from typing import Dict, Optional, List, Tuple
 
 from config.prompts import COMPLIANCE_CHECK_PROMPT
 from retrieval.hybrid_search import hybrid_search
@@ -10,6 +12,72 @@ from llm.client import chat_with_prompt
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def build_compliance_messages(submitted_text: str, search_results: list) -> list:
+    """构建合规检查的 messages 列表，供流式端点使用"""
+    standards_text_parts = []
+    for i, r in enumerate(search_results, 1):
+        standards_text_parts.append(
+            f"[标准{i}] {r.get('standard_number', '')} {r.get('standard_name', '')}\n"
+            f"章节: {r.get('section_title', '')} {r.get('clause_number', '')}\n"
+            f"条款类型: {r.get('chunk_type', '')}\n"
+            f"内容: {r.get('chunk_text', '')}\n"
+        )
+
+    relevant_standards = "\n---\n".join(standards_text_parts)
+    truncated = len(submitted_text) > 6000 or len(relevant_standards) > 6000
+    if truncated:
+        logger.warning(f"合规自查: 文本被截断 (原文{len(submitted_text)}字/标准{len(relevant_standards)}字)")
+
+    prompt = COMPLIANCE_CHECK_PROMPT.format(
+        submitted_text=submitted_text[:6000],
+        relevant_standards=relevant_standards[:6000],
+    )
+    return [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": "请对提交的制度/方案进行合规性校验"},
+    ]
+
+
+def build_compliance_sources(search_results: list) -> list:
+    """从检索结果构建来源列表"""
+    return [
+        {
+            "index": i,
+            "standard_number": r.get("standard_number", ""),
+            "standard_name": r.get("standard_name", ""),
+            "section_title": r.get("section_title", ""),
+            "clause_number": r.get("clause_number", ""),
+            "chunk_type": r.get("chunk_type", ""),
+        }
+        for i, r in enumerate(search_results, 1)
+    ]
+
+
+def parse_compliance_score(report: str) -> dict:
+    """从合规报告末尾解析 JSON 评分块"""
+    try:
+        matches = re.findall(r'\{[^}]*"total"[^}]*\}', report)
+        if matches:
+            return json.loads(matches[-1])
+    except (json.JSONDecodeError, KeyError):
+        pass
+
+    # Fallback: 统计报告中符合/不符合关键词
+    compliant = len(re.findall(r'\|\s*符合\s*\|', report))
+    partial = len(re.findall(r'\|\s*部分符合\s*\|', report))
+    non_compliant = len(re.findall(r'\|\s*不符合\s*\|', report))
+    total = compliant + partial + non_compliant
+    if total > 0:
+        return {
+            "total": total,
+            "compliant": compliant,
+            "partial": partial,
+            "non_compliant": non_compliant,
+            "percentage": round(compliant / total * 100, 1),
+        }
+    return {}
 
 
 def check_compliance(
