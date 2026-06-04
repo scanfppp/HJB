@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+
+# Environment
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Models (large binary files)
+navy_rag/models/
+
+# OCR data
+navy_rag/data/
+
+# OS
+.DS_Store
+Thumbs.db
