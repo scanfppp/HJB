@@ -6,7 +6,8 @@ from typing import List, Dict, Optional
 
 from database.operations import vector_search, keyword_search
 from embeddings.embedder import embed_query
-from retrieval.reranker import rrf_fusion, apply_status_priority
+from retrieval.reranker import rrf_fusion, apply_status_priority, \
+    deduplicate_similar_chunks, filter_low_quality
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -60,6 +61,14 @@ def hybrid_search(
 
     # 第四步：文档状态优先级加权
     fused = apply_status_priority(fused)
+
+    # 第四步半：过滤低相关度噪声
+    from config.settings import MIN_FUSION_SCORE
+    fused = filter_low_quality(fused, min_score=MIN_FUSION_SCORE)
+
+    # 第四步七五：去重近似重复片段
+    from config.settings import DEDUP_SIMILARITY_THRESHOLD
+    fused = deduplicate_similar_chunks(fused, threshold=DEDUP_SIMILARITY_THRESHOLD)
 
     # 第五步：截取Top-K
     results = fused[:top_k]

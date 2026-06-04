@@ -309,12 +309,13 @@ def keyword_search(keywords: str, top_k: int = 10, filters: dict = None) -> list
     conditions = ["d.is_active = TRUE"]
     params = []
 
-    conditions.append("v.text_search @@ plainto_tsquery('simple', %s)")
-    params.append(tokenized)
+    tokens = [t.strip() for t in tokenized.split() if t.strip()]
+    if not tokens:
+        return []
+    tsquery = " | ".join(tokens)
 
-    like_pattern = f"%{kw}%"
-    conditions.append("(d.standard_name ILIKE %s OR d.standard_number ILIKE %s)")
-    params.extend([like_pattern, like_pattern])
+    conditions.append("v.text_search @@ to_tsquery('simple', %s)")
+    params.append(tsquery)
 
     if filters:
         if filters.get("doc_status"):
@@ -327,14 +328,14 @@ def keyword_search(keywords: str, top_k: int = 10, filters: dict = None) -> list
             conditions.append("d.standard_number = %s")
             params.append(filters["standard_number"])
 
-    params.extend([tokenized, top_k])
+    params.extend([tsquery, top_k])
 
     where = " AND ".join(conditions)
     sql = f"""
         SELECT
             v.id, v.document_id, v.chunk_text, v.chunk_index,
             v.section_title, v.clause_number, v.chunk_type,
-            ts_rank(v.text_search, plainto_tsquery('simple', %s)) AS similarity,
+            ts_rank(v.text_search, to_tsquery('simple', %s)) AS similarity,
             d.standard_number, d.standard_name, d.doc_status,
             d.applicable_field, d.responsible_unit
         FROM {VECTOR_TABLE} v

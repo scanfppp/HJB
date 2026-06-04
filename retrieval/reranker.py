@@ -91,3 +91,83 @@ def deduplicate_by_document(results: List[Dict]) -> List[Dict]:
             seen.add(doc_id)
             deduped.append(r)
     return deduped
+
+
+def _trigram_jaccard(text1: str, text2: str) -> float:
+    """计算两段文本的 trigram Jaccard 相似度"""
+    if not text1 or not text2:
+        return 0.0
+
+    def trigrams(text):
+        return {text[i:i + 3] for i in range(len(text) - 2)}
+
+    t1 = trigrams(text1)
+    t2 = trigrams(text2)
+    if not t1 or not t2:
+        return 0.0
+    return len(t1 & t2) / len(t1 | t2)
+
+
+def deduplicate_similar_chunks(results: List[Dict],
+                                threshold: float = 0.6) -> List[Dict]:
+    """
+    去重近似重复的 chunk（含同文档相邻 + 跨文档重复）。
+    对所有结果按 fusion_score 降序排列，逐个与已保留条目比较，
+    若 trigram Jaccard > threshold 则跳过。
+    """
+    if not results:
+        return results
+
+    # 按分数降序，优先保留高分条目
+    sorted_results = sorted(
+        enumerate(results),
+        key=lambda x: x[1].get("fusion_score", 0),
+        reverse=True,
+    )
+
+    kept = []
+    to_remove = set()
+
+    for idx, item in sorted_results:
+        text = item.get("chunk_text", "")
+        is_dup = False
+        for kept_item in kept:
+            sim = _trigram_jaccard(text, kept_item.get("chunk_text", ""))
+            if sim > threshold:
+                is_dup = True
+                break
+        if is_dup:
+            to_remove.add(idx)
+        else:
+            kept.append(item)
+
+    if not to_remove:
+        return results
+
+    filtered = [r for i, r in enumerate(results) if i not in to_remove]
+    logger.info(f"近似去重: {len(results)}条 → {len(filtered)}条 "
+                f"(移除{len(to_remove)}条近似重复)")
+    return filtered
+
+
+def filter_low_quality(results: List[Dict],
+                       min_score: float = 0.005) -> List[Dict]:
+    """
+    过滤低相关度结果。
+    保留 fusion_score >= min_score 的条目。
+    兜底：若过滤后为空，返回原始结果。
+    """
+    if not results:
+        return results
+
+    filtered = [r for r in results if r.get("fusion_score", 0) >= min_score]
+
+    if not filtered:
+        logger.info(f"低质过滤: 全部{len(results)}条不达标(min={min_score})，保留原始结果")
+        return results
+
+    removed = len(results) - len(filtered)
+    if removed > 0:
+        logger.info(f"低质过滤: {len(results)}条 → {len(filtered)}条 "
+                    f"(移除{removed}条, 阈值={min_score})")
+    return filtered

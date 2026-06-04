@@ -74,6 +74,8 @@ FTS_CONFIG = "simple"
 HYBRID_KEYWORD_WEIGHT = 0.3
 HYBRID_SEMANTIC_WEIGHT = 0.7
 STATUS_PRIORITY = {"现行有效": 1.0, "修订中": 0.8, "废止": 0.5}
+DEDUP_SIMILARITY_THRESHOLD = 0.6   # 相邻chunk trigram Jaccard 去重阈值
+MIN_FUSION_SCORE = 0.005           # 最低融合分数
 
 # ============================================================
 # 应用
