@@ -5,12 +5,18 @@ const S = {
     msgs: [],
     streaming: false,
     pending: [],
-    chatMode: 'chat',  // chat | optimize | gap | compliance
-    gapFile: null,      // 标准分析模式上传的文件
+    chatMode: 'chat',
+    gapFile: null,
+    abortController: null,
 };
 
 /* ====== init ====== */
 document.addEventListener('DOMContentLoaded', () => {
+    Object.keys(S.convs).forEach(id => {
+        if (!S.convs[id].createdAt) {
+            S.convs[id].createdAt = S.convs[id].time || Date.now();
+        }
+    });
     renderHistory();
     switchPanel('chat');
     loadDocs();
@@ -45,7 +51,12 @@ function saveConv() {
     const id = S.cid || 'c' + Date.now();
     const title = (S.msgs.find(m => m.role === 'user') || {}).content || '对话';
     const old = S.convs[id] || {};
-    S.convs[id] = { title: old.title || title.slice(0, 40), msgs: S.msgs.slice(), time: Date.now(), pinned: old.pinned || false };
+    S.convs[id] = {
+        title: old.title || title.slice(0, 40),
+        msgs: S.msgs.slice(),
+        createdAt: old.createdAt || Date.now(),
+        pinned: old.pinned || false
+    };
     S.cid = id;
     localStorage.setItem('navy_v2', JSON.stringify(S.convs));
     renderHistory();
@@ -56,7 +67,7 @@ function renderHistory() {
     const convs = Object.entries(S.convs).sort((a, b) => {
         if (a[1].pinned && !b[1].pinned) return -1;
         if (!a[1].pinned && b[1].pinned) return 1;
-        return b[1].time - a[1].time;
+        return b[1].createdAt - a[1].createdAt;
     });
 
     if (!convs.length) {
@@ -75,7 +86,6 @@ function renderHistory() {
 }
 
 function toggleHistoryMenu(e, id) {
-    // 关闭已打开的菜单
     document.querySelectorAll('.history-dropdown').forEach(d => d.remove());
     const btn = e.currentTarget;
     const rect = btn.getBoundingClientRect();
@@ -91,7 +101,6 @@ function toggleHistoryMenu(e, id) {
         <div class="history-dropdown-item danger" onclick="deleteConv('${id}')">🗑️ 删除</div>
     `;
     document.body.appendChild(menu);
-    // 点击其他地方关闭
     setTimeout(() => document.addEventListener('click', function close() {
         menu.remove();
         document.removeEventListener('click', close);
@@ -131,7 +140,6 @@ async function clearHistory() {
     renderMsgs(); renderHistory();
 }
 
-// 自定义模态弹窗（替代原生的 confirm / prompt）
 function showModal(title, message, inputValue) {
     return new Promise(resolve => {
         const overlay = document.createElement('div');
@@ -161,7 +169,6 @@ function showModal(title, message, inputValue) {
     });
 }
 
-/* ====== render messages ====== */
 function renderMsgs() {
     const body = document.getElementById('chatBody');
     const welcome = document.getElementById('welcomeBlock');
@@ -180,7 +187,7 @@ function renderMsgs() {
         let html = `<div class="msg ${m.role}"><div class="msg-bubble">`;
         html += isUser ? escHtml(m.content) : mdRender(m.content);
         if (m.sources && m.sources.length) {
-            html += `<div class="msg-sources"><span class="src-icon"></span> ${m.sources.map(s =>
+            html += `<div class="msg-sources"><span class="src-icon">📎</span> ${m.sources.map(s =>
                 `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
             ).join('；')}</div>`;
         }
@@ -193,19 +200,19 @@ function renderMsgs() {
 
 function scrollDown() {
     const body = document.getElementById('chatBody');
-    body.scrollTop = body.scrollHeight;
+    body.scrollTo({ top: body.scrollHeight, behavior: 'smooth' });
 }
 
 function addMsg(role, content, sources) {
     S.msgs.push({ role, content, sources });
     renderMsgs();
+    scrollDown();
 }
 
 let _renderPending = false;
 let _pendingContent = '';
 
 function updateLastBubble(content) {
-    // 流式更新：requestAnimationFrame 节流，每帧最多渲染一次markdown
     if (!S.msgs.length) return;
     S.msgs[S.msgs.length - 1].content = content;
     _pendingContent = content;
@@ -225,7 +232,6 @@ function updateLastBubble(content) {
 }
 
 function finalizeLastBubble(content, sources) {
-    // 流结束后确保最终渲染 + 来源
     if (!S.msgs.length) return;
     S.msgs[S.msgs.length - 1].content = content;
     S.msgs[S.msgs.length - 1].sources = sources;
@@ -236,7 +242,7 @@ function finalizeLastBubble(content, sources) {
         if (sources && sources.length) {
             const srcDiv = document.createElement('div');
             srcDiv.className = 'msg-sources';
-            srcDiv.textContent = sources.map(s =>
+            srcDiv.innerHTML = `<span>📎</span> ` + sources.map(s =>
                 `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
             ).join('；');
             last.appendChild(srcDiv);
@@ -252,47 +258,33 @@ function escHtml(t) {
     return d.innerHTML;
 }
 
-// 轻量内置markdown解析器，不依赖外部CDN，流式输出时即时生效
 function parseMD(text) {
     if (!text) return '';
-    // 先转义HTML
     let html = escHtml(text);
-    // 代码块 ```...```
     html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-    // 行内代码 `...`
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-    // 粗体 **...**
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-    // 斜体 *...*
     html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-    // 标题 ### ...
     html = html.replace(/^### (.+)$/gm, '<h4>$1</h4>');
     html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
     html = html.replace(/^# (.+)$/gm, '<h2>$1</h2>');
-    // 无序列表 - ... 或 * ...
     html = html.replace(/^[\-\*] (.+)$/gm, '<li>$1</li>');
     html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
-    // 引用 > ...
     html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
-    // 双换行 → 段落分隔
     html = html.replace(/\n\n/g, '</p><p>');
-    // 单换行 → <br>
     html = html.replace(/\n/g, '<br>');
-    // 包装段落
     if (!html.startsWith('<')) html = '<p>' + html;
     if (!html.endsWith('>')) html = html + '</p>';
     return html;
 }
 
 function mdRender(t) {
-    // 优先使用marked（更完整的表格/嵌套支持），降级用内置parseMD
     if (typeof marked !== 'undefined' && marked.parse) {
         try { marked.setOptions({ breaks: true, gfm: true }); return marked.parse(t); } catch (e) {}
     }
     return parseMD(t);
 }
 
-/* ====== send ====== */
 async function send() {
     const input = document.getElementById('chatInput');
     const q = input.value.trim();
@@ -302,6 +294,7 @@ async function send() {
     input.value = ''; input.style.height = 'auto';
     document.getElementById('sendBtn').disabled = true;
     S.streaming = true;
+    document.getElementById('stopBtn').style.display = 'flex';
 
     addMsg('user', q);
     S.msgs.push({ role: 'assistant', content: '', sources: [] });
@@ -319,21 +312,27 @@ async function send() {
             await sendCompliance(q);
         }
     } catch (e) {
-        finalizeLastBubble('请求失败: ' + e.message, []);
+        if (e.name === 'AbortError') {
+            finalizeLastBubble('⚓ 已停止生成。', []);
+        } else {
+            finalizeLastBubble('请求失败: ' + e.message, []);
+        }
     } finally {
         S.streaming = false;
         document.getElementById('sendBtn').disabled = false;
-        document.getElementById('chatBody').scrollTop = document.getElementById('chatBody').scrollHeight;
+        document.getElementById('stopBtn').style.display = 'none';
         saveConv();
     }
 }
 
 async function sendChat(q) {
+    S.abortController = new AbortController();
     const hist = S.msgs.filter(m => m.role === 'user' || m.role === 'assistant')
         .slice(0, -1).map(m => ({ role: m.role, content: m.content }));
     const res = await fetch('/api/chat', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question: q, history: hist }),
+        signal: S.abortController.signal,
     });
     const reader = res.body.getReader();
     const dec = new TextDecoder();
@@ -358,10 +357,12 @@ async function sendChat(q) {
 }
 
 async function sendOptimize(text) {
+    S.abortController = new AbortController();
     updateLastBubble('正在按海军文书规范优化中...');
     const res = await fetch('/api/optimize', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: S.abortController.signal,
     });
     const d = await res.json();
     if (d.error) { finalizeLastBubble(d.error, []); return; }
@@ -370,15 +371,14 @@ async function sendOptimize(text) {
 }
 
 async function sendGap(q) {
+    S.abortController = new AbortController();
     updateLastBubble('正在检索相关标准文献，比对分析中...');
     let url, body;
     if (S.gapFile) {
-        // 先上传文件
         const fd = new FormData(); fd.append('file', S.gapFile);
-        const upRes = await fetch('/api/upload', { method: 'POST', body: fd });
+        const upRes = await fetch('/api/upload', { method: 'POST', body: fd, signal: S.abortController.signal });
         const upData = await upRes.json();
         if (upData.error) { finalizeLastBubble('文件上传失败: ' + upData.error, []); S.gapFile = null; return; }
-        // 用上传文件的文本内容做分析
         url = '/api/gap-text';
         body = JSON.stringify({ text: upData.cleaned_text, standard_name: upData.metadata?.standard_name || S.gapFile.name });
         S.gapFile = null;
@@ -389,6 +389,7 @@ async function sendGap(q) {
     const res = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body,
+        signal: S.abortController.signal,
     });
     const d = await res.json();
     if (d.error) { finalizeLastBubble(d.error, []); return; }
@@ -401,10 +402,12 @@ async function sendGap(q) {
 }
 
 async function sendCompliance(text) {
+    S.abortController = new AbortController();
     updateLastBubble('正在对照标准条款逐条校验中...');
     const res = await fetch('/api/compliance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
+        signal: S.abortController.signal,
     });
     const d = await res.json();
     if (d.error) { finalizeLastBubble(d.error, []); return; }
@@ -412,19 +415,34 @@ async function sendCompliance(text) {
     finalizeLastBubble(result, []);
 }
 
+function stopGeneration() {
+    if (S.abortController) {
+        S.abortController.abort();
+        S.abortController = null;
+        S.streaming = false;
+        document.getElementById('sendBtn').disabled = false;
+        document.getElementById('stopBtn').style.display = 'none';
+        
+        if (S.msgs.length && S.msgs[S.msgs.length - 1].role === 'assistant' && !S.msgs[S.msgs.length - 1].content) {
+            S.msgs.pop();
+            renderMsgs();
+        }
+        
+        saveConv();
+    }
+}
+
 function setMode(mode) {
     S.chatMode = mode;
     S.gapFile = null;
     document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
     document.querySelector(`.mode-btn[data-mode="${mode}"]`).classList.add('active');
-    // 标准分析模式显示附件按钮
     const attachBtn = document.getElementById('attachBtn');
     attachBtn.classList.toggle('show', mode === 'gap');
-    // 更新placeholder
     const input = document.getElementById('chatInput');
-    const placeholders = {chat:'输入你的问题...', optimize:'粘贴需要优化的公文文本...', gap:'输入标准名称或问题，或上传文档...', compliance:'粘贴需要校验的制度/方案内容...'};
+    const placeholders = {chat:'请输入您的问题...', optimize:'直接发送需要优化的文本...', gap:'输入问题，或上传文档...', compliance:'直接发送需要校验的制度/方案内容...'};
     input.placeholder = placeholders[mode] || '输入...';
-    document.getElementById('footHint').textContent = mode === 'gap' ? '可上传文档或直接输入问题' : mode === 'optimize' ? '粘贴文本后发送即可优化' : mode === 'compliance' ? '粘贴制度内容后发送即可校验' : 'Enter 发送，Shift+Enter 换行';
+    document.getElementById('footHint').textContent = mode === 'gap' ? '🔬 可上传文档或直接输入问题' : mode === 'optimize' ? '✏️ 粘贴文本后发送即可优化' : mode === 'compliance' ? '✅ 粘贴制度内容后发送即可校验' : '💬 Enter 发送，Shift+Enter 换行';
     input.focus();
 }
 
@@ -432,14 +450,12 @@ function onGapFile(files) {
     if (!files.length) return;
     const f = files[0];
     S.gapFile = f;
-    // 在输入框里显示文件名
     document.getElementById('chatInput').value = `[已选择文件: ${f.name}] 请描述分析要求`;
     document.getElementById('gapFileInput').value = '';
 }
 
 function sendHint(t) {
     document.getElementById('chatInput').value = t;
-    // 根据提示内容自动切换模式
     if (t.includes('优化')) setMode('optimize');
     else if (t.includes('内容缺口') || t.includes('分析')) setMode('gap');
     else setMode('chat');
@@ -455,7 +471,6 @@ function autoGrow(el) {
     el.style.height = Math.min(el.scrollHeight, 140) + 'px';
 }
 
-/* ====== upload ====== */
 async function onFiles(files) {
     const exts = ['pdf', 'docx', 'txt'];
     const all = Array.from(files);
@@ -503,7 +518,6 @@ function renderPending() {
     const ingesting = S._ingesting || false;
     const uploading = S._uploading || false;
     const hasParsing = S.pending.some(p => p._status === 'parsing');
-    // 有文件还在上传中时禁用全部入库
     const disableIngest = ingesting || hasParsing;
     const statusLabel = s => ({parsing:'解析中...', parsed:'已上传', ingesting:'入库中...'}[s] || '');
     area.innerHTML =
@@ -580,7 +594,6 @@ async function doIngestAll() {
     S._ingesting = true; renderPending();
     const total = S.pending.length;
     let fail = 0;
-    // 顺序执行避免竞态，每次从当前数组取第一个待入库文件
     for (let i = 0; i < total; i++) {
         if (!S.pending.length) break;
         const id = S.pending[0]._id;
@@ -609,28 +622,30 @@ async function loadUploadedDocs() {
         const r = await fetch('/api/documents'); const docs = await r.json();
         const area = document.getElementById('docsArea');
         if (!docs.length) { area.innerHTML = '<p style="color:var(--text3);font-size:13px">暂无已入库文档</p>'; return; }
-        area.innerHTML = '<h4 style="margin-bottom:8px">已入库文档</h4>' + docs.map(d => {
+        area.innerHTML = '<h4 style="margin-bottom:8px">📚 已入库文档</h4>' + docs.map(d => {
             const cls = d.doc_status === '现行有效' ? 'green' : d.doc_status === '修订中' ? 'yellow' : 'red';
             return `<div class="doc-item"><span class="dot ${cls}"></span>[${d.standard_number}] ${d.standard_name} (${d.doc_status})</div>`;
         }).join('');
     } catch (e) {}
 }
 
-/* ====== optimize ====== */
-/* ====== gap ====== */
 async function loadDocs() {
     try {
-        const r = await fetch('/api/documents'); const docs = await r.json();
+        const r = await fetch('/api/documents');
+        const docs = await r.json();
         const sel = document.getElementById('gapSelect');
-        if (sel) sel.innerHTML = '<option value="">选择目标标准...</option>' +
-            docs.map(d => `<option value="${d.id}">[${d.standard_number}] ${d.standard_name} (${d.doc_status})</option>`).join('');
-    } catch (e) {}
+        if (sel) {
+            sel.innerHTML = '<option value="">选择目标标准...</option>' +
+                (docs && docs.length ? docs.map(d => `<option value="${d.id}">[${d.standard_number}] ${d.standard_name} (${d.doc_status})</option>`).join('') : '');
+        }
+    } catch (e) {
+        console.warn('loadDocs error:', e);
+    }
 }
 
-/* ====== drag & drop ====== */
 const drop = document.getElementById('dropZone');
 if (drop) {
-    drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--brand)'; });
-    drop.addEventListener('dragleave', () => { drop.style.borderColor = '#d0d4e0'; });
-    drop.addEventListener('drop', e => { e.preventDefault(); drop.style.borderColor = '#d0d4e0'; onFiles(e.dataTransfer.files); });
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.style.borderColor = 'var(--brand-gold)'; });
+    drop.addEventListener('dragleave', () => { drop.style.borderColor = 'var(--border)'; });
+    drop.addEventListener('drop', e => { e.preventDefault(); drop.style.borderColor = 'var(--border)'; onFiles(e.dataTransfer.files); });
 }
