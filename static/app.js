@@ -231,9 +231,10 @@ function renderMsgs() {
         let html = `<div class="msg ${m.role}"><div class="msg-bubble">`;
         html += isUser ? escHtml(m.content) : mdRender(m.content);
         if (m.sources && m.sources.length) {
+            const uniqueSrc = uniqueSources(m.sources);
             const maxShow = 5;
-            const shown = m.sources.slice(0, maxShow);
-            const more = m.sources.length > maxShow ? ` 等${m.sources.length}个来源` : '';
+            const shown = uniqueSrc.slice(0, maxShow);
+            const more = uniqueSrc.length > maxShow ? ` 等${uniqueSrc.length}个来源` : '';
             html += `<div class="msg-sources"><span class="src-icon">📎</span> ${shown.map(s =>
                 s.source_display || `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
             ).join('；')}${more}</div>`;
@@ -293,11 +294,12 @@ function finalizeLastBubble(content, sources) {
     if (last) {
         last.innerHTML = mdRender(content);
         if (sources && sources.length) {
+            const uniqueSrc = uniqueSources(sources);
             const srcDiv = document.createElement('div');
             srcDiv.className = 'msg-sources';
             const maxShow = 5;
-            const shown = sources.slice(0, maxShow);
-            const more = sources.length > maxShow ? ` 等${sources.length}个来源` : '';
+            const shown = uniqueSrc.slice(0, maxShow);
+            const more = uniqueSrc.length > maxShow ? ` 等${uniqueSrc.length}个来源` : '';
             srcDiv.innerHTML = `<span>📎</span> ` + shown.map(s =>
                 s.source_display || `[${s.standard_number}] ${s.section_title} ${s.clause_number}`
             ).join('；') + more;
@@ -305,6 +307,16 @@ function finalizeLastBubble(content, sources) {
         }
         scrollDown();
     }
+}
+
+function uniqueSources(sources) {
+    const seen = new Set();
+    return sources.filter(s => {
+        const key = s.standard_number || s.source_display || '';
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
 }
 
 function escHtml(t) {

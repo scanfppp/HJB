@@ -135,10 +135,16 @@ def build_gap_messages(text: str, standard_name: str, search_results: list) -> l
 
 
 def build_gap_related_standards(search_results: list) -> list:
-    """从检索结果构建关联标准摘要列表，字段与 chat 端点对齐"""
-    return [
-        {
-            "standard_number": r.get("standard_number", ""),
+    """从检索结果构建关联标准摘要列表（按标准编号去重），字段与 chat 端点对齐"""
+    seen = set()
+    result = []
+    for r in search_results:
+        sn = r.get("standard_number", "") or ""
+        if sn in seen:
+            continue
+        seen.add(sn)
+        result.append({
+            "standard_number": sn,
             "standard_name": r.get("standard_name", ""),
             "section_title": r.get("section_title", ""),
             "clause_number": r.get("clause_number", ""),
@@ -146,9 +152,8 @@ def build_gap_related_standards(search_results: list) -> list:
             "doc_status": r.get("doc_status", ""),
             "similarity": round(r.get("similarity", 0), 4),
             "source_display": r.get("source_display", ""),
-        }
-        for r in search_results
-    ]
+        })
+    return result
 
 
 def analyze_text(text: str, standard_name: str = "") -> Dict:
