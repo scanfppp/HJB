@@ -257,6 +257,7 @@ function addMsg(role, content, sources) {
 }
 
 let _renderPending = false;
+let _renderRafId = null;
 let _pendingContent = '';
 
 function updateLastBubble(content) {
@@ -266,8 +267,9 @@ function updateLastBubble(content) {
 
     if (!_renderPending) {
         _renderPending = true;
-        requestAnimationFrame(() => {
+        _renderRafId = requestAnimationFrame(() => {
             _renderPending = false;
+            _renderRafId = null;
             const bubbles = document.querySelectorAll('#msgList .msg.assistant .msg-bubble');
             const last = bubbles[bubbles.length - 1];
             if (last) {
@@ -279,6 +281,10 @@ function updateLastBubble(content) {
 }
 
 function finalizeLastBubble(content, sources) {
+    // 取消未执行的 rAF，防止覆盖来源 DOM
+    if (_renderRafId) { cancelAnimationFrame(_renderRafId); _renderRafId = null; }
+    _renderPending = false;
+
     if (!S.msgs.length) return;
     S.msgs[S.msgs.length - 1].content = content;
     S.msgs[S.msgs.length - 1].sources = sources;
@@ -299,7 +305,6 @@ function finalizeLastBubble(content, sources) {
         }
         scrollDown();
     }
-    _renderPending = false;
 }
 
 function escHtml(t) {
