@@ -13,6 +13,8 @@ const S = {
     optLength: 'keep',
     lastOptimized: null,
     optimizingComplete: false,
+    diagnosisDepth: 'full',
+    diagnosisField: 'general',
 };
 
 /* ====== init ====== */
@@ -48,6 +50,20 @@ function initOptimizePills() {
     if (continueBtn) {
         continueBtn.addEventListener('click', continueOptimize);
     }
+    // 诊断面板 pills
+    ['depthPills', 'fieldPills'].forEach(id => {
+        const container = document.getElementById(id);
+        if (!container) return;
+        container.addEventListener('click', e => {
+            const pill = e.target.closest('.opt-pill');
+            if (!pill) return;
+            container.querySelectorAll('.opt-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            const val = pill.dataset.val;
+            if (id === 'depthPills') S.diagnosisDepth = val;
+            else if (id === 'fieldPills') S.diagnosisField = val;
+        });
+    });
 }
 
 /* ====== panel ====== */
@@ -341,9 +357,7 @@ async function send() {
         } else if (mode === 'optimize') {
             await sendOptimize(q);
         } else if (mode === 'gap') {
-            await sendGap(q);
-        } else if (mode === 'compliance') {
-            await sendCompliance(q);
+            await sendDiagnosis(q);
         }
     } catch (e) {
         if (e.name === 'AbortError') {
@@ -478,9 +492,10 @@ function continueOptimize() {
     });
 }
 
-async function sendGap(q) {
+async function sendDiagnosis(q) {
     S.abortController = new AbortController();
-    updateLastBubble('正在检索相关标准文献，比对分析中...');
+    const depthLabel = S.diagnosisDepth === 'quick' ? '快速合规' : '全链路诊断';
+    updateLastBubble(`正在启动${depthLabel}，检索关联标准...`);
     let url, body;
     if (S.gapFile) {
         const fd = new FormData(); fd.append('file', S.gapFile);
@@ -488,11 +503,11 @@ async function sendGap(q) {
         const upData = await upRes.json();
         if (upData.error) { finalizeLastBubble('文件上传失败: ' + upData.error, []); S.gapFile = null; return; }
         url = '/api/gap-text';
-        body = JSON.stringify({ text: upData.cleaned_text, standard_name: upData.metadata?.standard_name || S.gapFile.name });
+        body = JSON.stringify({ text: upData.cleaned_text, standard_name: upData.metadata?.standard_name || S.gapFile.name, depth: S.diagnosisDepth, field: S.diagnosisField });
         S.gapFile = null;
     } else {
         url = '/api/gap-text';
-        body = JSON.stringify({ text: q, standard_name: q });
+        body = JSON.stringify({ text: q, standard_name: q, depth: S.diagnosisDepth, field: S.diagnosisField });
     }
     const res = await fetch(url, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -501,7 +516,7 @@ async function sendGap(q) {
     });
     const reader = res.body.getReader();
     const dec = new TextDecoder();
-    let full = '', relatedStandards = [];
+    let full = '', relatedStandards = [], defects = null;
     while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -511,7 +526,18 @@ async function sendGap(q) {
             if (d === '[DONE]') continue;
             try {
                 const p = JSON.parse(d);
-                if (p.type === 'text') { full += p.content; updateLastBubble(full); }
+                if (p.type === 'text') {
+                    // 前端兜底过滤：实时拦截 LLM 生成的假引用行
+                    let content = p.content;
+                    if (content.includes('📎') || content.includes('undefined undefined')) {
+                        content = content.split('\n').filter(line =>
+                            !line.includes('📎') && !line.includes('undefined undefined')
+                        ).join('\n');
+                        if (!content.trim()) continue; // 整块都是垃圾，跳过
+                    }
+                    full += content;
+                    updateLastBubble(full);
+                }
                 else if (p.type === 'phase') { updateLastBubble(p.message || full); }
                 else if (p.type === 'related_standards') {
                     relatedStandards = p.standards || [];
@@ -520,71 +546,32 @@ async function sendGap(q) {
                         updateLastBubble(preview);
                     }
                 }
+                else if (p.type === 'defects') { defects = p.defects; }
+                else if (p.type === 'cleaned_text') { full = p.content; updateLastBubble(full); }
                 else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
             } catch (e) {}
         }
     }
     if (full) {
         let result = '';
+        if (defects && defects.total > 0) {
+            result += renderDefectsCard(defects);
+        }
         if (relatedStandards.length) {
             result += '### 关联标准\n' + relatedStandards.map(s => `- [${s.standard_number}] ${s.standard_name}`).join('\n') + '\n\n';
         }
-        result += '### 分析报告\n' + full;
-        finalizeLastBubble(result, []);
+        result += full;
+        finalizeLastBubble(result, relatedStandards);
     } else {
-        finalizeLastBubble('分析失败，请重试。', []);
+        finalizeLastBubble('诊断分析失败，请重试。', []);
     }
 }
 
-async function sendCompliance(text) {
-    S.abortController = new AbortController();
-    updateLastBubble('正在对照标准条款逐条校验中...');
-    const res = await fetch('/api/compliance', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-        signal: S.abortController.signal,
-    });
-    const reader = res.body.getReader();
-    const dec = new TextDecoder();
-    let full = '', score = null, sources = [], standardsCount = 0;
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of dec.decode(value).split('\n')) {
-            if (!line.startsWith('data: ')) continue;
-            const d = line.slice(6);
-            if (d === '[DONE]') continue;
-            try {
-                const p = JSON.parse(d);
-                if (p.type === 'text') { full += p.content; updateLastBubble(full); }
-                else if (p.type === 'standards_count') {
-                    standardsCount = p.count;
-                    updateLastBubble(p.message || full);
-                }
-                else if (p.type === 'sources') { sources = p.sources; }
-                else if (p.type === 'score') { score = p.score; }
-                else if (p.type === 'error') { full += '\n\n' + p.content; updateLastBubble(full); }
-            } catch (e) {}
-        }
-    }
-    if (full) {
-        let result = `### 合规校验报告\n\n`;
-        if (score && score.total) {
-            result += renderComplianceScore(score);
-        }
-        result += `\n${full}`;
-        finalizeLastBubble(result, sources);
-    } else {
-        finalizeLastBubble('校验失败，请重试。', []);
-    }
-}
-
-function renderComplianceScore(s) {
-    const pct = s.percentage || 0;
-    let bar = '<div class="score-bar"><div class="score-fill" style="width:' + pct + '%"></div></div>';
-    return '| 总检查项 | 符合 | 部分符合 | 不符合 | 合规率 |\n'
+function renderDefectsCard(d) {
+    return '### 缺陷统计\n'
+        + '| P0致命 | P1重要 | P2一般 | P3建议 | 合计 |\n'
         + '|:---:|:---:|:---:|:---:|:---:|\n'
-        + '| ' + (s.total || 0) + ' | ' + (s.compliant || 0) + ' | ' + (s.partial || 0) + ' | ' + (s.non_compliant || 0) + ' | ' + pct + '% |\n';
+        + `| ${d.p0 || 0} | ${d.p1 || 0} | ${d.p2 || 0} | ${d.p3 || 0} | ${d.total || 0} |\n\n`;
 }
 
 function stopGeneration() {
@@ -614,11 +601,13 @@ function setMode(mode) {
     const attachBtn = document.getElementById('attachBtn');
     attachBtn.classList.toggle('show', mode === 'gap');
     document.getElementById('optimizePanel').style.display = mode === 'optimize' ? 'block' : 'none';
+    document.getElementById('diagnosisPanel').style.display = mode === 'gap' ? 'block' : 'none';
     document.getElementById('continueRow').classList.remove('show');
     const input = document.getElementById('chatInput');
-    const placeholders = {chat:'请输入您的问题...', optimize:'粘贴需要优化的文本，选择文风强度后发送...', gap:'输入问题，或上传文档...', compliance:'直接发送需要校验的制度/方案内容...'};
+    const placeholders = {chat:'请输入您的问题...', optimize:'粘贴需要优化的文本，选择文风强度后发送...', gap:'粘贴标准文本内容，选择分析深度和领域后发送...'};
     input.placeholder = placeholders[mode] || '输入...';
-    document.getElementById('footHint').textContent = mode === 'gap' ? '🔬 可上传文档或直接输入问题' : mode === 'optimize' ? '✏️ 选择文风/强度/篇幅，粘贴文本后发送' : mode === 'compliance' ? '✅ 粘贴制度内容后发送即可校验' : '💬 Enter 发送，Shift+Enter 换行';
+    const hints = {gap:'🔬 选择分析深度和适用领域，粘贴标准文本后发送诊断', optimize:'✏️ 选择文风/强度/篇幅，粘贴文本后发送', chat:'💬 Enter 发送，Shift+Enter 换行'};
+    document.getElementById('footHint').textContent = hints[mode] || hints['chat'];
     input.focus();
 }
 
@@ -633,7 +622,7 @@ function onGapFile(files) {
 function sendHint(t) {
     document.getElementById('chatInput').value = t;
     if (t.includes('优化')) setMode('optimize');
-    else if (t.includes('内容缺口') || t.includes('分析')) setMode('gap');
+    else if (t.includes('诊断') || t.includes('分析') || t.includes('标准')) setMode('gap');
     else setMode('chat');
     send();
 }

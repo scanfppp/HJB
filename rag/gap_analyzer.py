@@ -1,14 +1,18 @@
 """
-标准查漏补缺 & 内容升级优化 — 核心高阶功能
-自动识别内容缺口、给出增补建议、草拟修订初稿
+标准诊断分析 V4 — 四层全链路诊断引擎
+合规对标 + 内容合理性 + 落地适配 + 前瞻发展
 """
 
+import json, re
 from typing import Dict, List, Optional
 
 from config.prompts import (
     GAP_ANALYSIS_PROMPT,
     STANDARD_COMPARE_PROMPT,
     DRAFT_REVISION_PROMPT,
+    STANDARD_DIAGNOSIS_PROMPT,
+    STANDARD_DIAGNOSIS_QUICK_PROMPT,
+    STANDARD_FIELDS,
 )
 from database.operations import get_document, get_chunks_by_document, list_documents
 from retrieval.hybrid_search import search_related_standards, hybrid_search
@@ -16,6 +20,89 @@ from llm.client import chat_with_prompt
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def build_diagnosis_messages(
+    text: str,
+    standard_name: str = "",
+    search_results: list = None,
+    depth: str = "full",
+    field: str = "general",
+) -> list:
+    """
+    构建标准诊断分析的 messages 列表（V4 四层引擎）。
+
+    Args:
+        text: 待分析的标准文本
+        standard_name: 标准名称
+        search_results: 检索到的关联标准
+        depth: 分析深度 (quick=仅合规 / full=四层 / forward=含前瞻)
+        field: 适用领域 (general|ship|document|bigdata|safety)
+    """
+    if search_results is None:
+        search_results = []
+
+    name = standard_name or "用户提交标准"
+
+    # 构建关联标准内容 + 格式化参考文献清单
+    related_parts = []
+    ref_list = []
+    seen = set()
+    for r in search_results:
+        sn = r.get('standard_number', '') or ''
+        sname = r.get('standard_name', '') or ''
+        related_parts.append(f"【{sn} {sname}】\n内容: {r.get('chunk_text', '')[:1000]}\n")
+        # 去重构建参考文献清单
+        key = f"{sn}"
+        if sn and key not in seen:
+            seen.add(key)
+            ref_list.append(f"[{sn}] {sname}")
+    related_content = "\n---\n".join(related_parts) if related_parts else "暂无关联标准数据"
+    ref_section = "\n".join(ref_list) if ref_list else ""
+
+    # 领域上下文
+    field_info = STANDARD_FIELDS.get(field, STANDARD_FIELDS["general"])
+    field_context = f"领域：{field_info['label']}\n"
+    field_context += f"对标国标：{field_info['gb_list']}\n"
+    field_context += f"业务场景：{field_info['scenario']}"
+
+    # 选择提示词模板
+    if depth == "quick":
+        prompt_template = STANDARD_DIAGNOSIS_QUICK_PROMPT
+    else:
+        prompt_template = STANDARD_DIAGNOSIS_PROMPT
+
+    truncated = len(text) > 10000 or len(related_content) > 10000
+    if truncated:
+        logger.warning(f"标准诊断: 文本被截断 (原文{len(text)}字/关联{len(related_content)}字)")
+
+    prompt = prompt_template.format(
+        target_content=text[:10000],
+        field_context=field_context,
+        related_content=related_content[:10000],
+        ref_list=ref_section,
+    )
+
+    return [
+        {"role": "system", "content": prompt},
+        {"role": "user", "content": f"请对《{name}》进行{'快速合规' if depth == 'quick' else '全链路'}诊断分析"},
+    ]
+
+
+def parse_diagnosis_defects(report: str) -> dict:
+    """从报告正文中统计 P0/P1/P2/P3 缺陷出现次数"""
+    p0 = len(re.findall(r'P0[致命]', report))
+    p1 = len(re.findall(r'P1[重要]', report))
+    p2 = len(re.findall(r'P2[一般]', report))
+    p3 = len(re.findall(r'P3[建议]', report))
+    # 也尝试匹配中文标记
+    if p0 == 0:
+        p0 = len(re.findall(r'P0[^0-9]', report))
+        p1 = len(re.findall(r'P1[^0-9]', report))
+        p2 = len(re.findall(r'P2[^0-9]', report))
+        p3 = len(re.findall(r'P3[^0-9]', report))
+    total = p0 + p1 + p2 + p3
+    return {"p0": p0, "p1": p1, "p2": p2, "p3": p3, "total": total}
 
 
 def build_gap_messages(text: str, standard_name: str, search_results: list) -> list:
@@ -48,13 +135,17 @@ def build_gap_messages(text: str, standard_name: str, search_results: list) -> l
 
 
 def build_gap_related_standards(search_results: list) -> list:
-    """从检索结果构建关联标准摘要列表"""
+    """从检索结果构建关联标准摘要列表，字段与 chat 端点对齐"""
     return [
         {
             "standard_number": r.get("standard_number", ""),
             "standard_name": r.get("standard_name", ""),
+            "section_title": r.get("section_title", ""),
+            "clause_number": r.get("clause_number", ""),
+            "chunk_type": r.get("chunk_type", ""),
             "doc_status": r.get("doc_status", ""),
-            "similarity": r.get("similarity", 0),
+            "similarity": round(r.get("similarity", 0), 4),
+            "source_display": r.get("source_display", ""),
         }
         for r in search_results
     ]

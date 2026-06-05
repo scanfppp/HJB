@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/static/style.css?v=22">
+<link rel="stylesheet" href="/static/style.css?v=30">
 </head>
 <body>
 
@@ -74,8 +74,7 @@
                 <div class="mode-bar">
                     <button class="mode-btn active" data-mode="chat" onclick="setMode('chat')">💬 智能问答</button>
                     <button class="mode-btn" data-mode="optimize" onclick="setMode('optimize')">✏️ 文本优化</button>
-                    <button class="mode-btn" data-mode="gap" onclick="setMode('gap')">🔬 标准分析</button>
-                    <button class="mode-btn" data-mode="compliance" onclick="setMode('compliance')">✅ 合规自查</button>
+                    <button class="mode-btn" data-mode="gap" onclick="setMode('gap')">🔬 标准诊断</button>
                 </div>
                 <div class="optimize-panel" id="optimizePanel" style="display:none;">
                     <div class="opt-row">
@@ -101,6 +100,25 @@
                             <button class="opt-pill active" data-val="keep">保持原长</button>
                             <button class="opt-pill" data-val="shorten">精简缩写</button>
                             <button class="opt-pill" data-val="expand">适当扩写</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="optimize-panel" id="diagnosisPanel" style="display:none;">
+                    <div class="opt-row">
+                        <span class="opt-label">深度</span>
+                        <div class="opt-pills" id="depthPills">
+                            <button class="opt-pill" data-val="quick">快速合规</button>
+                            <button class="opt-pill active" data-val="full">全链路诊断</button>
+                        </div>
+                    </div>
+                    <div class="opt-row">
+                        <span class="opt-label">领域</span>
+                        <div class="opt-pills" id="fieldPills">
+                            <button class="opt-pill active" data-val="general">通用</button>
+                            <button class="opt-pill" data-val="ship">舰船装备</button>
+                            <button class="opt-pill" data-val="document">军用公文</button>
+                            <button class="opt-pill" data-val="bigdata">大数据</button>
+                            <button class="opt-pill" data-val="safety">劳保防护</button>
                         </div>
                     </div>
                 </div>
@@ -155,7 +173,7 @@
 </main>
 </div>
 
-<script src="/static/app.js?v=22"></script>
+<script src="/static/app.js?v=30"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>if(typeof marked==='undefined'){console.warn('marked CDN failed');}</script>
 </body>

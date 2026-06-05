@@ -3,7 +3,7 @@
 提供 RESTful + SSE 流式接口
 """
 
-import sys, os, json, time, asyncio, concurrent.futures
+import sys, os, json, re, time, asyncio, concurrent.futures
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from fastapi import FastAPI, UploadFile, File, Request
@@ -27,7 +27,10 @@ from rag.optimizer import (
     optimize_text, build_optimize_messages, build_continue_optimize_messages,
     compute_changes, clean_output,
 )
-from rag.gap_analyzer import analyze_gaps, analyze_text, build_gap_messages, build_gap_related_standards
+from rag.gap_analyzer import (
+    analyze_gaps, analyze_text, build_gap_messages, build_gap_related_standards,
+    build_diagnosis_messages, parse_diagnosis_defects,
+)
 from rag.compliance import check_compliance, build_compliance_messages, build_compliance_sources, parse_compliance_score
 from llm.client import chat_stream
 from config.prompts import RAG_QA_SYSTEM_PROMPT
@@ -46,21 +49,17 @@ _executor = concurrent.futures.ThreadPoolExecutor(max_workers=10)
 
 
 def sse_response(messages: list, extra_events: list = None,
-                  post_stream=None, on_complete=None) -> StreamingResponse:
+                  post_stream=None, on_complete=None,
+                  max_tokens: int = None, stream_timeout: int = 120) -> StreamingResponse:
     """
     SSE 流式响应工厂 — 将 LLM 流式输出包装为 StreamingResponse。
-
-    - messages: LLM 会话消息列表
-    - extra_events: [(type, data_dict), ...] 在 LLM 文本之前发送的额外事件
-    - post_stream(full_response) -> [(type, data_dict), ...] 文本流结束后、[DONE]前发送的额外事件
-    - on_complete(full_response): 流完成后的回调（用于日志记录等）
     """
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue()
 
     def stream_in_thread():
         try:
-            for chunk in chat_stream(messages):
+            for chunk in chat_stream(messages, max_tokens=max_tokens):
                 try:
                     queue.put_nowait(("text", chunk))
                 except asyncio.QueueFull:
@@ -84,7 +83,7 @@ def sse_response(messages: list, extra_events: list = None,
         try:
             while True:
                 try:
-                    msg_type, data = await asyncio.wait_for(queue.get(), timeout=120)
+                    msg_type, data = await asyncio.wait_for(queue.get(), timeout=stream_timeout)
                 except asyncio.TimeoutError:
                     yield f"data: {json.dumps({'type': 'error', 'content': '请求超时，请重试'})}\n\n"
                     break
@@ -446,13 +445,15 @@ async def api_optimize(req: Request):
     )
 
 
-# ==================== 标准分析 ====================
+# ==================== 标准诊断分析（V4 四层引擎） ====================
 @app.post("/api/gap-text")
 async def api_gap_text(req: Request):
-    """标准分析：接收文字或上传文件内容，检索关联标准给出分析（SSE流式）"""
+    """标准诊断：四层分析引擎（SSE流式）— 参数 {text, standard_name, depth, field}"""
     data = await req.json()
     text = data.get("text", "").strip()
     standard_name = data.get("standard_name", "")
+    depth = data.get("depth", "full")       # quick | full
+    field = data.get("field", "general")    # general|ship|document|bigdata|safety
     if not text:
         return JSONResponse({"error": "请提供标准内容或名称"}, status_code=400)
 
@@ -466,23 +467,31 @@ async def api_gap_text(req: Request):
 
     search_results = await loop.run_in_executor(_executor, do_search)
     related_standards = build_gap_related_standards(search_results)
-    messages = build_gap_messages(text, standard_name, search_results)
+    messages = build_diagnosis_messages(text, standard_name, search_results, depth=depth, field=field)
 
+    depth_label = "快速合规" if depth == "quick" else "全链路诊断"
     extra_events = [
-        ("phase", {"phase": "retrieving", "message": f"检索到 {len(search_results)} 条关联标准，正在对比分析..."}),
+        ("phase", {"phase": "analyzing", "message": f"检索到 {len(search_results)} 条关联标准，启动{depth_label}..."}),
         ("related_standards", {"standards": related_standards}),
     ]
 
+    def post_stream(full_response):
+        defects = parse_diagnosis_defects(full_response)
+        return [("defects", {"defects": defects})]
+
     def on_complete(full_response):
         try:
-            log_query("user", f"[标准分析] {text[:200]}", full_response[:500], "分析", related_standards)
+            log_query("user", f"[标准诊断] {text[:200]}", full_response[:500], "诊断", related_standards)
         except Exception:
             pass
 
     return sse_response(
         messages=messages,
         extra_events=extra_events,
+        post_stream=post_stream,
         on_complete=on_complete,
+        max_tokens=16384,
+        stream_timeout=300,
     )
 
 
@@ -503,12 +512,13 @@ async def api_gap(req: Request):
         return JSONResponse({"error": str(e)}, status_code=500)
 
 
-# ==================== 合规自查 ====================
+# ==================== 合规自查（向后兼容，路由到快速诊断模式） ====================
 @app.post("/api/compliance")
 async def api_compliance(req: Request):
+    """合规自查 — 内部路由到标准诊断 quick 模式（向后兼容）"""
     data = await req.json()
     text = data.get("text", "").strip()
-    field = data.get("field", "")
+    app_field = data.get("field", "")
     if not text:
         return JSONResponse({"error": "请提供制度/方案内容"}, status_code=400)
 
@@ -516,27 +526,25 @@ async def api_compliance(req: Request):
 
     def do_search():
         filters = None
-        if field and field.strip():
-            filters = {"applicable_field": field.strip()}
+        if app_field and app_field.strip():
+            filters = {"applicable_field": app_field.strip()}
         return hybrid_search(query=text[:500], top_k=10, filters=filters)
 
     search_results = await loop.run_in_executor(_executor, do_search)
 
     if not search_results:
         async def empty_gen():
-            yield f"data: {json.dumps({'type': 'error', 'content': '未能检索到相关的海军标准条款，无法进行合规校验。请确认已入库相关领域的标准文档。'})}\n\n"
+            yield f"data: {json.dumps({'type': 'error', 'content': '未能检索到相关的海军标准条款，无法进行合规校验。'})}\n\n"
             yield "data: [DONE]\n\n"
         return StreamingResponse(empty_gen(), media_type="text/event-stream")
 
+    field_key = app_field if app_field in ("ship", "document", "bigdata", "safety") else "general"
+    messages = build_diagnosis_messages(text, "", search_results, depth="quick", field=field_key)
     sources = build_compliance_sources(search_results)
-    messages = build_compliance_messages(text, search_results)
 
     def post_stream(full_response):
-        score = parse_compliance_score(full_response)
-        events = [("sources", {"sources": sources})]
-        if score:
-            events.append(("score", {"score": score}))
-        return events
+        defects = parse_diagnosis_defects(full_response)
+        return [("sources", {"sources": sources}), ("defects", {"defects": defects})]
 
     def on_complete(full_response):
         try:
