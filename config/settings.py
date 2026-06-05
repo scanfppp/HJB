@@ -24,11 +24,14 @@ VECTOR_TABLE = "vector_st"
 MAX_DOCUMENT_BATCH_SIZE = 24
 
 # ============================================================
-# 大模型 (阿里云百炼)
+# 大模型 (DeepSeek)
 # ============================================================
-LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-98a311032b374edd914f4e0f71f17d30")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-LLM_MODEL = os.getenv("LLM_MODEL", "qwen-plus")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-a12743c3d44648e89b62e316c5194980")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
+LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
+# LLM_API_KEY = os.getenv("LLM_API_KEY", "ollama")
+# LLM_BASE_URL = os.getenv("LLM_BASE_URL", "http://localhost:11434/v1")
+# LLM_MODEL = os.getenv("LLM_MODEL", "qwen2.5:7b")
 LLM_MAX_TOKENS = 4096
 LLM_TEMPERATURE = 0.1
 
