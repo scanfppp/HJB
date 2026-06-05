@@ -23,6 +23,40 @@ REQUIRED_FIELDS = [
 VALID_STATUSES = ["现行有效", "废止", "修订中"]
 
 
+def _normalize_fullwidth(text: str) -> str:
+    """全角字符归一化：全角字母数字符号 → 半角"""
+    result = []
+    for ch in text:
+        code = ord(ch)
+        # 全角字母 A-Z (FF21-FF3A) → 半角 (41-5A)
+        if 0xFF21 <= code <= 0xFF3A:
+            result.append(chr(code - 0xFF21 + 0x41))
+        # 全角字母 a-z (FF41-FF5A) → 半角 (61-7A)
+        elif 0xFF41 <= code <= 0xFF5A:
+            result.append(chr(code - 0xFF41 + 0x61))
+        # 全角数字 ０-９ (FF10-FF19) → 半角 (30-39)
+        elif 0xFF10 <= code <= 0xFF19:
+            result.append(chr(code - 0xFF10 + 0x30))
+        # 全角符号 ．／－（FF0E, FF0F, FF0D）→ 半角 . / -
+        elif code == 0xFF0E:
+            result.append('.')
+        elif code == 0xFF0F:
+            result.append('/')
+        elif code == 0xFF0D:
+            result.append('-')
+        elif code == 0xFF08:
+            result.append('(')
+        elif code == 0xFF09:
+            result.append(')')
+        elif code == 0xFF1A:
+            result.append(':')
+        elif code == 0xFF0C:
+            result.append(',')
+        else:
+            result.append(ch)
+    return ''.join(result)
+
+
 def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: str = "") -> dict:
     """从文本中自动提取标准元数据，优先从文档头部匹配"""
     metadata = {
@@ -34,6 +68,11 @@ def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: 
         "doc_status": "现行有效",
         "responsible_unit": "",
     }
+
+    # 全角归一化（处理 PDF CID 字体乱码）
+    text = _normalize_fullwidth(text)
+    if extracted_title:
+        extracted_title = _normalize_fullwidth(extracted_title)
 
     # 取文档头部（前800字），标准编号和名称通常在这里
     header = text[:800]
@@ -48,11 +87,12 @@ def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: 
         number = _extract_standard_number_from_header(text[:3000])
     metadata["standard_number"] = number
 
-    # 2. 标准名称：优先使用外部传入的标题（如PDF最大字号提取），否则正则提取
-    if extracted_title:
+    # 2. 标准名称：优先使用外部传入的标题，否则正则提取（均需过乱码检测）
+    if extracted_title and not _looks_garbled(extracted_title):
         metadata["standard_name"] = extracted_title
     else:
-        metadata["standard_name"] = _extract_standard_name(text, header_clean, metadata["standard_number"])
+        name = _extract_standard_name(text, header_clean, metadata["standard_number"])
+        metadata["standard_name"] = name if name and not _looks_garbled(name) else ""
 
     # 3. 从文件名补充
     if not metadata["standard_name"] and file_name:
@@ -62,9 +102,13 @@ def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: 
         if len(base) >= 5:
             metadata["standard_name"] = base
     if not metadata["standard_number"] and file_name:
-        num_match = re.search(r'([A-Z]+\s*\d+[A-Z]?[\.\-]?\d*)', file_name)
+        # 支持 GB/T、GBT、GJB、HJB 等格式，兼容文件名中的 +/ 等分隔符
+        base = file_name.rsplit(".", 1)[0]
+        # 清理常见干扰字符
+        base = re.sub(r'[_+=\s]+', ' ', base)
+        num_match = re.search(r'([A-Z]{2,6}\s*(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[-–—]?\s*\d{2,4})', base)
         if num_match:
-            metadata["standard_number"] = num_match.group(1)
+            metadata["standard_number"] = num_match.group(1).replace('—', '-').replace('–', '-')
 
     # 4. 提取日期（从头部优先）
     metadata["publish_date"], metadata["implement_date"] = _extract_dates(text[:3000])
@@ -143,6 +187,19 @@ def _extract_standard_number_from_header(header: str) -> str:
     return best
 
 
+def _looks_garbled(text: str) -> bool:
+    """检测文本是否疑似 PDF CID 字体乱码（含过多生僻 CJK 字符）"""
+    if not text:
+        return False
+    rare = 0
+    for ch in text:
+        code = ord(ch)
+        # CJK扩展A区及以上 (U+3400-U+4DBF 或 U+7000+) 大概率是乱码
+        if 0x3400 <= code <= 0x4DBF or code >= 0x7000:
+            rare += 1
+    return rare > max(1, len(text) * 0.2)  # 超过20%的生僻字视为乱码
+
+
 def _extract_standard_name(text: str, header: str, std_number: str) -> str:
     """从文档头部提取标准名称"""
     # 策略1: 标准编号后面紧跟的中文标题
@@ -158,7 +215,7 @@ def _extract_standard_name(text: str, header: str, std_number: str) -> str:
                 name = m.group(1).strip()
                 # 去掉尾部英文
                 name = re.sub(r'\s+[A-Za-z].*$', '', name).strip()
-                if len(name) >= 4:
+                if len(name) >= 4 and not _looks_garbled(name):
                     return name
 
     # 策略2: header中找独立中文长标题行
@@ -170,7 +227,8 @@ def _extract_standard_name(text: str, header: str, std_number: str) -> str:
         if (re.match(r'^[一-鿿（(]', line)
                 and 5 <= len(line) <= 100
                 and not any(line.startswith(w) for w in skip_words)
-                and '依据' not in line[:10] and '根据' not in line[:10]):
+                and '依据' not in line[:10] and '根据' not in line[:10]
+                and not _looks_garbled(line)):
             return line
 
     # 策略3: 标签提取

@@ -260,9 +260,7 @@ def vector_search(embedding: list, top_k: int = 10, filters: dict = None) -> lis
             conditions.append(f"v.document_id IN ({placeholders})")
             params.extend(filters["doc_ids"])
 
-    where = " AND " + " AND ".join(conditions) if conditions else ""
-    if where:
-        where = " AND " + where
+    where = (" AND " + " AND ".join(conditions)) if conditions else ""
 
     params.extend([embedding_str, embedding_str, top_k])
 

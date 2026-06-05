@@ -33,7 +33,7 @@ from rag.gap_analyzer import (
 )
 from rag.compliance import check_compliance, build_compliance_messages, build_compliance_sources, parse_compliance_score
 from llm.client import chat_stream
-from config.prompts import RAG_QA_SYSTEM_PROMPT
+from config.prompts import RAG_QA_SYSTEM_PROMPT, STANDARD_FIELDS
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -162,10 +162,14 @@ async def chat(req: Request):
             yield "data: [DONE]\n\n"
         return StreamingResponse(empty_gen(), media_type="text/event-stream")
 
-    # 构建上下文
+    # 构建上下文（过滤低相关度结果）
+    MIN_SIM = 0.01
     context_parts = []
     sources = []
     for i, r in enumerate(search_results, 1):
+        sim = r.get("similarity", 0)
+        if sim < MIN_SIM:
+            continue
         context_parts.append(
             f"[来源{i}] {r.get('standard_name', '')} ({r.get('standard_number', '')})\n"
             f"{r.get('section_title', '')} {r.get('clause_number', '')}\n"
@@ -177,7 +181,7 @@ async def chat(req: Request):
             "section_title": r.get("section_title", ""),
             "clause_number": r.get("clause_number", ""),
             "chunk_type": r.get("chunk_type", ""),
-            "similarity": round(r.get("similarity", 0), 4),
+            "similarity": round(sim, 4),
             "source_display": r.get("source_display", ""),
         })
 
@@ -235,7 +239,11 @@ async def chat(req: Request):
                     full_response += data
                     yield f"data: {json.dumps({'type': 'text', 'content': data})}\n\n"
                 elif msg_type == "sources":
-                    yield f"data: {json.dumps({'type': 'sources', 'sources': data})}\n\n"
+                    # LLM 判定检索结果不相关时，不发来源避免误导
+                    if "暂无相关标准依据" in full_response:
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': []})}\n\n"
+                    else:
+                        yield f"data: {json.dumps({'type': 'sources', 'sources': data})}\n\n"
                 elif msg_type == "error":
                     yield f"data: {json.dumps({'type': 'error', 'content': f'LLM调用失败: {data}'})}\n\n"
                     break
@@ -460,9 +468,16 @@ async def api_gap_text(req: Request):
     loop = asyncio.get_event_loop()
 
     def do_search():
+        filters = None
+        if field and field != "general":
+            field_info = STANDARD_FIELDS.get(field, {})
+            field_label = field_info.get("label", "")
+            if field_label:
+                filters = {"applicable_field": field_label}
         return hybrid_search(
             query=text if not standard_name else standard_name,
             top_k=10,
+            filters=filters,
         )
 
     search_results = await loop.run_in_executor(_executor, do_search)

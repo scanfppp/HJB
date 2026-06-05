@@ -124,8 +124,33 @@ def parse_pdf(file_path: str, force_ocr: bool = False) -> str:
         logger.info(f"检测到扫描版PDF (平均{avg_chars:.0f}字/页)，切换OCR")
         return _ocr_pdf(file_path)
 
+    result = "\n".join(all_text)
+    # PDF CID字体全角归一化
+    result = _fix_pdf_fullwidth(result)
     logger.info(f"PDF文字提取: {page_count}页, {total_chars}字")
-    return "\n".join(all_text)
+    return result
+
+
+def _fix_pdf_fullwidth(text: str) -> str:
+    """修复 PDF CID 字体导致的全角字母数字"""
+    result = []
+    for ch in text:
+        code = ord(ch)
+        if 0xFF21 <= code <= 0xFF3A:   # 全角 A-Z → 半角
+            result.append(chr(code - 0xFF21 + 0x41))
+        elif 0xFF41 <= code <= 0xFF5A:  # 全角 a-z → 半角
+            result.append(chr(code - 0xFF41 + 0x61))
+        elif 0xFF10 <= code <= 0xFF19:  # 全角 0-9 → 半角
+            result.append(chr(code - 0xFF10 + 0x30))
+        elif code == 0xFF0F:            # 全角 ／ → /
+            result.append('/')
+        elif code == 0xFF0D:            # 全角 － → -
+            result.append('-')
+        elif code == 0xFF0E:            # 全角 ． → .
+            result.append('.')
+        else:
+            result.append(ch)
+    return ''.join(result)
 
 
 def _ocr_pdf(file_path: str) -> str:
