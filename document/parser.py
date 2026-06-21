@@ -18,8 +18,16 @@ def _check_tesseract():
     if _tesseract_ok is not None:
         return _tesseract_ok
 
-    tesseract_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-    if not os.path.exists(tesseract_path):
+    import shutil
+
+    # 多平台查找 tesseract
+    tesseract_path = shutil.which("tesseract")  # Linux / Docker PATH
+    if not tesseract_path:
+        win_path = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+        if os.path.exists(win_path):
+            tesseract_path = win_path
+
+    if not tesseract_path:
         logger.warning("Tesseract 未安装，扫描版PDF将无法OCR识别")
         _tesseract_ok = False
         return False
@@ -32,7 +40,7 @@ def _check_tesseract():
         if os.path.exists(os.path.join(local_tessdata, "chi_sim.traineddata")):
             os.environ["TESSDATA_PREFIX"] = local_tessdata
         _tesseract_ok = True
-        logger.info("Tesseract OCR 就绪")
+        logger.info(f"Tesseract OCR 就绪 ({tesseract_path})")
         return True
     except ImportError:
         logger.warning("pytesseract 未安装: pip install pytesseract")
@@ -127,6 +135,20 @@ def parse_pdf(file_path: str, force_ocr: bool = False) -> str:
     result = "\n".join(all_text)
     # PDF CID字体全角归一化
     result = _fix_pdf_fullwidth(result)
+
+    # CID 乱码检测：PUA 私用区字符 + ASCII 符号密集
+    pua_count = sum(1 for ch in result[:2000] if 0xE000 <= ord(ch) <= 0xF8FF)
+    sample = result[:2000]
+    ascii_symbols = sum(1 for ch in sample if 0x21 <= ord(ch) <= 0x2F or 0x3A <= ord(ch) <= 0x40 or 0x5B <= ord(ch) <= 0x60 or 0x7B <= ord(ch) <= 0x7E)
+    cjk_chars = sum(1 for ch in sample if 0x4E00 <= ord(ch) <= 0x9FFF)
+    ascii_garbled = len(sample) > 100 and ascii_symbols > len(sample) * 0.35 and cjk_chars < len(sample) * 0.15
+    should_ocr = pua_count > 10 or ascii_garbled
+    if should_ocr:
+        logger.info(f"检测到CID字体乱码(PUA:{pua_count} ASCII:{ascii_garbled})，OCR前2页取元数据")
+        first2 = _ocr_pdf_pages(file_path, max_pages=2)
+        if first2 and not first2.startswith("此PDF为扫描版"):
+            result = first2 + "\n【CID_GARBLED】\n" + result
+
     logger.info(f"PDF文字提取: {page_count}页, {total_chars}字")
     return result
 
@@ -153,8 +175,28 @@ def _fix_pdf_fullwidth(text: str) -> str:
     return ''.join(result)
 
 
+def _ocr_pdf_pages(file_path: str, max_pages: int = 2) -> str:
+    """Tesseract OCR 指定页数（用于上传时快速提取元数据）"""
+    if not _check_tesseract():
+        return ""
+    import fitz, pytesseract
+    from PIL import Image
+
+    doc = fitz.open(file_path)
+    pages = min(doc.page_count, max_pages)
+    texts = []
+    for i in range(pages):
+        pix = doc[i].get_pixmap(dpi=200)
+        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        text = pytesseract.image_to_string(img, lang="chi_sim+eng", config="--oem 1 --psm 3")
+        if text:
+            texts.append(text)
+    doc.close()
+    return "\n".join(texts)
+
+
 def _ocr_pdf(file_path: str) -> str:
-    """Tesseract OCR 扫描版 PDF：200DPI + 并行 + 加速参数"""
+    """Tesseract OCR 全页 PDF：200DPI + 并行 + 加速参数"""
     if not _check_tesseract():
         return (
             "此PDF为扫描版（图片型），需要安装Tesseract OCR才能识别。\n"

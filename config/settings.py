@@ -3,6 +3,8 @@
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # ============================================================
 # 数据库 (PostgreSQL + pgvector)
@@ -26,7 +28,7 @@ MAX_DOCUMENT_BATCH_SIZE = 24
 # ============================================================
 # 大模型 (DeepSeek)
 # ============================================================
-LLM_API_KEY = os.getenv("LLM_API_KEY", "sk-a12743c3d44648e89b62e316c5194980")
+LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 # LLM_API_KEY = os.getenv("LLM_API_KEY", "ollama")
@@ -79,7 +81,7 @@ HYBRID_KEYWORD_WEIGHT = 0.3
 HYBRID_SEMANTIC_WEIGHT = 0.7
 STATUS_PRIORITY = {"现行有效": 1.0, "修订中": 0.8, "废止": 0.5}
 DEDUP_SIMILARITY_THRESHOLD = 0.6   # 相邻chunk trigram Jaccard 去重阈值
-MIN_FUSION_SCORE = 0.005           # 最低融合分数
+MIN_FUSION_SCORE = 0.01             # RRF 融合最低分（BGE-base-zh-v1.5）
 
 # ============================================================
 # 应用

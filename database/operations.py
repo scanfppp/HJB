@@ -86,6 +86,33 @@ def get_document(doc_id: int) -> Optional[dict]:
     ])
 
 
+def count_documents(
+    doc_status: str = None,
+    applicable_field: str = None,
+    keyword: str = None,
+    is_active: bool = None,
+) -> int:
+    """统计文档数量（用于分页）"""
+    conditions = []
+    params = []
+    if doc_status:
+        conditions.append("doc_status = %s")
+        params.append(doc_status)
+    if applicable_field:
+        conditions.append("applicable_field = %s")
+        params.append(applicable_field)
+    if keyword:
+        conditions.append("(standard_name ILIKE %s OR standard_number ILIKE %s)")
+        params.extend([f"%{keyword}%", f"%{keyword}%"])
+    if is_active is not None:
+        conditions.append("is_active = %s")
+        params.append(is_active)
+    where = " WHERE " + " AND ".join(conditions) if conditions else ""
+    sql = f"SELECT COUNT(*) FROM documents{where}"
+    rows = execute_query(sql, tuple(params))
+    return rows[0][0] if rows else 0
+
+
 def list_documents(
     doc_status: str = None,
     applicable_field: str = None,
@@ -125,7 +152,15 @@ def list_documents(
 
 
 def delete_document(doc_id: int) -> bool:
-    """删除文档及其所有向量块"""
+    """删除文档及其所有向量块，同时清理磁盘上的文件"""
+    import os as _os
+    _file_path = None
+
+    # 先查文件路径，用于后续清理
+    doc = get_document(doc_id)
+    if doc:
+        _file_path = doc.get("file_path", "")
+
     conn = get_connection()
     try:
         with conn.cursor() as cur:
@@ -133,6 +168,17 @@ def delete_document(doc_id: int) -> bool:
             cur.execute("DELETE FROM documents WHERE id = %s", (doc_id,))
             conn.commit()
         logger.info(f"文档 {doc_id} 及其向量块已删除")
+
+        # 清理磁盘文件
+        if _file_path:
+            for _p in [_file_path, _file_path + ".txt"]:
+                try:
+                    if _os.path.exists(_p):
+                        _os.remove(_p)
+                        logger.info(f"已删除文件: {_p}")
+                except Exception as _e:
+                    logger.warning(f"文件清理失败 {_p}: {_e}")
+
         return True
     except Exception:
         conn.rollback()
@@ -141,10 +187,98 @@ def delete_document(doc_id: int) -> bool:
         release_connection(conn)
 
 
+def delete_documents_batch(doc_ids: list) -> dict:
+    """批量删除文档及其所有向量块，同时清理磁盘文件"""
+    import os as _os
+    if not doc_ids:
+        return {"deleted": 0, "failed": 0, "errors": []}
+
+    deleted = 0
+    failed = 0
+    errors = []
+    file_paths = {}
+
+    # 先查询所有文件路径
+    for did in doc_ids:
+        doc = get_document(did)
+        if doc:
+            file_paths[did] = doc.get("file_path", "")
+
+    conn = get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"DELETE FROM {VECTOR_TABLE} WHERE document_id = ANY(%s)",
+                (doc_ids,)
+            )
+            cur.execute(
+                "DELETE FROM documents WHERE id = ANY(%s)",
+                (doc_ids,)
+            )
+            conn.commit()
+        deleted = len(doc_ids)
+        logger.info(f"批量删除 {deleted} 个文档及其向量块")
+
+        # 清理磁盘文件
+        for did, fp in file_paths.items():
+            if fp:
+                for _p in [fp, fp + ".txt"]:
+                    try:
+                        if _os.path.exists(_p):
+                            _os.remove(_p)
+                            logger.info(f"已删除文件: {_p}")
+                    except Exception as _e:
+                        logger.warning(f"文件清理失败 {_p}: {_e}")
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"批量删除失败: {e}")
+        failed = len(doc_ids)
+        deleted = 0
+        errors.append(str(e))
+    finally:
+        release_connection(conn)
+
+    return {"deleted": deleted, "failed": failed, "errors": errors}
+
+
 def get_distinct_fields() -> list:
     """获取所有不重复的适用领域"""
     result = execute_query("SELECT DISTINCT applicable_field FROM documents WHERE applicable_field != ''")
     return [r[0] for r in result]
+
+
+def find_documents_by_standard_number(standard_number: str) -> list:
+    """根据标准号查找已入库的文档（可能多条）"""
+    if not standard_number or not standard_number.strip():
+        return []
+    sql = "SELECT * FROM documents WHERE standard_number = %s ORDER BY upload_time DESC"
+    rows = execute_query(sql, (standard_number.strip(),))
+    if not rows:
+        return []
+    keys = [
+        "id", "standard_number", "standard_name", "applicable_field",
+        "publish_date", "implement_date", "doc_status", "responsible_unit",
+        "file_path", "file_type", "upload_time", "is_active"
+    ]
+    return [_row_to_dict(r, keys) for r in rows]
+
+
+def find_duplicate_documents(standard_number: str, standard_name: str) -> list:
+    """根据标准号+标准名双重匹配查找重复文档。两者都匹配才算重复，避免同号不同名的文档被误判。"""
+    if not standard_number or not standard_number.strip():
+        return []
+    if not standard_name or not standard_name.strip():
+        return []
+    sql = "SELECT * FROM documents WHERE standard_number = %s AND standard_name = %s ORDER BY upload_time DESC"
+    rows = execute_query(sql, (standard_number.strip(), standard_name.strip()))
+    if not rows:
+        return []
+    keys = [
+        "id", "standard_number", "standard_name", "applicable_field",
+        "publish_date", "implement_date", "doc_status", "responsible_unit",
+        "file_path", "file_type", "upload_time", "is_active"
+    ]
+    return [_row_to_dict(r, keys) for r in rows]
 
 
 def get_document_count_by_status() -> dict:

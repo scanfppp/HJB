@@ -33,28 +33,40 @@
 ### 方式一：本地运行
 
 ```bash
-# 1. 启动 pgvector
+# 1. 配置环境变量
+cp .env.example .env   # 编辑 .env 填入你的 LLM_API_KEY
+
+# 2. 安装 Tesseract OCR（CID 字体 / 扫描版 PDF 需要）
+winget install UB-Mannheim.TesseractOCR
+
+# 3. 启动 pgvector
 docker-compose up -d pgvector
 
-# 2. 安装 Python 依赖
+# 4. 安装 Python 依赖
 pip install -r requirements.txt
 
-# 3. 初始化数据库
+# 5. 初始化数据库
 python -c "from database.schema import init_db; init_db()"
 
-# 4. 启动应用
+# 6. 启动应用
 python backend_api.py
 ```
+
+> 或运行一键脚本 `setup.bat`，再手动执行第 1 步配置 .env
 
 浏览器访问 `http://localhost:8501`
 
 ### 方式二：Docker 全栈部署
 
 ```bash
+# 1. 配置环境变量
+cp .env.example .env   # 编辑 .env 填入你的 LLM_API_KEY
+
+# 2. 构建并启动
 docker-compose up -d --build
 ```
 
-首次构建会下载嵌入模型（约 400MB），后续启动秒级就绪。
+首次构建会下载嵌入模型（约 400MB）+ Tesseract OCR + 中文语言包，后续启动秒级就绪。
 
 ## 项目结构
 
@@ -127,3 +139,5 @@ navy_rag/
 - 英文标准解析（`EN_EMBEDDING_MODEL`）
 - 权限分级管理
 - 标准批量导出
+
+

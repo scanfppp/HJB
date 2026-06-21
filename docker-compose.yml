@@ -33,17 +33,15 @@ services:
     depends_on:
       pgvector:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DB_HOST=pgvector
       - DB_PORT=5432
       - DB_NAME=postgres
       - DB_USER=postgres
       - DB_PASSWORD=pgvector
-      - HF_ENDPOINT=https://hf-mirror.com
       - EMBEDDING_MODEL=/app/models/bge-base-zh-v1.5
-      - LLM_API_KEY=sk-98a311032b374edd914f4e0f71f17d30
-      - LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-      - LLM_MODEL=qwen-plus
     volumes:
       - ./data/uploads:/app/data/uploads
       - ./data/tessdata:/app/data/tessdata

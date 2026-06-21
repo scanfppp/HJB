@@ -8,7 +8,7 @@ import re
 
 from config.prompts import (
     TEXT_OPTIMIZE_PROMPT, TEXT_OPTIMIZE_PROMPT_V2, TEXT_CONTINUE_OPTIMIZE_PROMPT,
-    OPTIMIZE_STYLES, OPTIMIZE_INTENSITY, OPTIMIZE_LENGTH,
+    OPTIMIZE_STYLES, OPTIMIZE_INTENSITY,
 )
 from llm.client import chat_with_prompt, chat_stream
 from utils.logger import get_logger
@@ -20,7 +20,6 @@ def build_optimize_messages(
     original_text: str,
     style: str = "standard",
     intensity: str = "medium",
-    length: str = "keep",
     optimization_aspects: list = None,
 ) -> list:
     """
@@ -28,14 +27,12 @@ def build_optimize_messages(
 
     Args:
         original_text: 原始文本
-        style: 文风键名 (standard|concise|authoritative|briefing)
-        intensity: 优化强度 (light|medium|deep)
-        length: 篇幅控制 (keep|shorten|expand)
+        style: 文风键名 (standard|concise|authoritative)
+        intensity: 优化力度 (light|medium|deep)，力度自动控制篇幅
         optimization_aspects: 自定义优化维度列表，为 None 时根据 intensity 自动选择
     """
     style_info = OPTIMIZE_STYLES.get(style, OPTIMIZE_STYLES["standard"])
     intensity_info = OPTIMIZE_INTENSITY.get(intensity, OPTIMIZE_INTENSITY["medium"])
-    length_info = OPTIMIZE_LENGTH.get(length, OPTIMIZE_LENGTH["keep"])
 
     if optimization_aspects is None:
         optimization_aspects = _intensity_aspects(intensity)
@@ -45,7 +42,6 @@ def build_optimize_messages(
     prompt = TEXT_OPTIMIZE_PROMPT_V2.format(
         style=f"{style_info['label']}：{style_info['desc']}",
         intensity=f"{intensity_info['label']}：{intensity_info['desc']}",
-        length=f"{length_info['label']}：{length_info['desc']}",
         aspects=aspect_instructions,
         original_text=original_text,
     )

@@ -102,13 +102,44 @@ def extract_metadata_from_text(text: str, file_name: str = "", extracted_title: 
         if len(base) >= 5:
             metadata["standard_name"] = base
     if not metadata["standard_number"] and file_name:
-        # 支持 GB/T、GBT、GJB、HJB 等格式，兼容文件名中的 +/ 等分隔符
-        base = file_name.rsplit(".", 1)[0]
-        # 清理常见干扰字符
-        base = re.sub(r'[_+=\s]+', ' ', base)
-        num_match = re.search(r'([A-Z]{2,6}\s*(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[-–—]?\s*\d{2,4})', base)
-        if num_match:
-            metadata["standard_number"] = num_match.group(1).replace('—', '-').replace('–', '-')
+        metadata["standard_number"] = _extract_standard_number_from_filename(file_name)
+
+    # 如果内容提取的编号是"引用标准"（GB/T 1.1 等），或文件名能提供更精确的编号，优先用文件名
+    if metadata["standard_number"] and file_name:
+        content_num = metadata["standard_number"].replace(' ', '')
+        # 情况1：引用标准
+        if content_num in _META_STANDARDS or any(
+            content_num.startswith(ms) for ms in _META_STANDARDS
+        ):
+            fn_num = _extract_standard_number_from_filename(file_name)
+            if fn_num and fn_num.replace(' ', '') != content_num:
+                metadata["standard_number"] = fn_num
+                logger.info(f"编号从引用标准替换为文件名: {content_num} → {fn_num}")
+        # 情况2：内容编号与文件名编号不同（pdfplumber 丢失小数点等）
+        else:
+            fn_num = _extract_standard_number_from_filename(file_name)
+            if fn_num:
+                fn_compact = fn_num.replace(' ', '')
+                if fn_compact != content_num and len(fn_compact) > len(content_num):
+                    metadata["standard_number"] = fn_num
+                    logger.info(f"编号从文件名补充精度: {content_num} → {fn_num}")
+
+    # 归一化编号格式
+    if metadata["standard_number"]:
+        num = metadata["standard_number"]
+        # OCR 常见噪声：空格+连字符+空格 → 连字符
+        num = re.sub(r'\s*[—\-–一]\s*', '-', num)
+        # 字母前缀和数字之间加空格（GB/T33479 → GB/T 33479）
+        num = re.sub(r'^([A-Z]{2,6}(?:/[A-Z])?)\s*(\d)', r'\1 \2', num)
+        metadata["standard_number"] = num
+        # 修正 PDF 解析导致的点号丢失：GB/T 1 1 → GB/T 1.1
+        metadata["standard_number"] = re.sub(
+            r'(\d)\s{1,3}(\d)',
+            r'\1.\2',
+            metadata["standard_number"]
+        )
+        # 清理多余空格
+        metadata["standard_number"] = re.sub(r'\s{2,}', ' ', metadata["standard_number"])
 
     # 4. 提取日期（从头部优先）
     metadata["publish_date"], metadata["implement_date"] = _extract_dates(text[:3000])
@@ -126,23 +157,64 @@ _META_STANDARDS = {
 }
 
 
+def _extract_standard_number_from_filename(file_name: str) -> str:
+    """从文件名中提取标准编号，支持多种命名格式"""
+    base = file_name.rsplit(".", 1)[0]
+    # 清理常见干扰字符
+    base = re.sub(r'[_+=\s]+', ' ', base)
+
+    # === 策略1：标准格式 字母开头+数字+年份（如 GB 39800.8-2024、HJB 590B-2025）===
+    m = re.search(r'([A-Z]{2,6}\s*(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[-–—]?\s*\d{2,4})', base)
+    if m:
+        result = m.group(1).replace('—', '-').replace('–', '-').replace('一', '-')
+        return _normalize_standard_number(result)
+
+    # === 策略2：数字开头-年份-类型（如 33479-2016-gbt-cd-300）===
+    # 匹配: 数字(4+) - 年份(4) - 类型字母(含/和数字) - 后缀
+    # 类型缩写映射
+    _TYPE_MAP = {
+        'gbt': 'GB/T', 'gb': 'GB', 'gjb': 'GJB', 'hjb': 'HJB',
+        'cb': 'CB', 'wj': 'WJ', 'qj': 'QJ', 'hb': 'HB', 'sj': 'SJ',
+        'cbt': 'CB/T', 'hbt': 'HB/T', 'sjt': 'SJ/T',
+        'qgbt': 'GB/T', 'qgb': 'GB',
+    }
+    m = re.search(r'(\d{4,})\s*[-–—]\s*(\d{4})\s*[-–—]\s*([a-z]{2,6}(?:[/.][a-z])?)(?:[-–—\s]|$)', base, re.IGNORECASE)
+    if m:
+        num = m.group(1)
+        year = m.group(2)
+        typ = m.group(3).lower().replace('.', '/')
+        prefix = _TYPE_MAP.get(typ, typ.upper())
+        return f"{prefix} {num}-{year}"
+
+    return ""
+
+
+def _normalize_standard_number(num: str) -> str:
+    """修正文件名中常见的简写：GBT → GB/T，GBZ → GB/Z 等"""
+    # 匹配: 1-2个大写字母 + T/Z + 空格/数字（如 GBT 47118 → GB/T 47118）
+    m = re.match(r'^([A-Z]{1,2})([TZ])\s+(\d)', num)
+    if m:
+        return f"{m.group(1)}/{m.group(2)} {num[m.start(3):]}"
+    return num
+
+
 def _extract_standard_number_from_header(header: str) -> str:
     """从文档头部提取标准编号 — 收集所有候选，按位置+上下文评分选最优"""
     patterns = [
         # HJB 590B-2025 或 HJB 590B—2025（带年份）
-        r'(HJB\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{4})',
+        r'(HJB\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–一]\s*\d{4})',
         # GJB 4072B-2023, GJB 150.1A-2009（带点号+字母+年份）
-        r'(GJB[/A-Za-z]*\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{4})',
+        r'(GJB[/A-Za-z]*\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–一]\s*\d{4})',
         # GB/T 1.1-2020, CB/T 4000-2005 等
-        r'([A-Z]{2,6}(?:/[A-Z](?:\s*[A-Z])?)?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{2,4})',
+        r'([A-Z]{2,6}(?:/[A-Z](?:\s*[A-Z])?)?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–一]\s*\d{2,4})',
         # Q/JB xxx-xxxx, Q/HJB xxx-xxxx
-        r'([A-Z]/[A-Z]{2,5}\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{2,4})',
+        r'([A-Z]/[A-Z]{2,5}\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–一]\s*\d{2,4})',
         # 标签式: "标准编号：GJB 150.1A-2009"
-        r'(?:标准编号|标准号|编号|文件编号)[：:\s]*([A-Z]{2,6}(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]?\s*\d{0,4})',
+        r'(?:标准编号|标准号|编号|文件编号)[：:\s]*([A-Z]{2,6}(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–一]?\s*\d{0,4})',
         # 无年份后缀: HJB 590B, GJB 150A
         r'([HG]JB[/A-Za-z]*\s*\d+(?:\.\d+)?[A-Za-z]?)',
         # 其他军标: WJ, QJ, HB, SJ, CB 等
-        r'([WQHS]J\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]?\s*\d{0,4})',
+        r'([WQHS]J\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–一]?\s*\d{0,4})',
     ]
 
     # 收集所有候选: (位置, 编号, 模式优先级)
@@ -151,7 +223,7 @@ def _extract_standard_number_from_header(header: str) -> str:
     for pi, pat in enumerate(patterns):
         for m in re.finditer(pat, header):
             num = m.group(1).strip()
-            num = num.replace('—', '-').replace('–', '-')
+            num = num.replace('—', '-').replace('–', '-').replace('一', '-')
             num = num.rstrip('-').strip()
             key = num.replace(' ', '')
             if re.search(r'\d', num) and len(num) >= 3 and key not in seen:
@@ -188,53 +260,170 @@ def _extract_standard_number_from_header(header: str) -> str:
 
 
 def _looks_garbled(text: str) -> bool:
-    """检测文本是否疑似 PDF CID 字体乱码（含过多生僻 CJK 字符）"""
+    """检测文本是否疑似 PDF CID 字体乱码（含过多生僻字符）"""
     if not text:
         return False
     rare = 0
     for ch in text:
         code = ord(ch)
-        # CJK扩展A区及以上 (U+3400-U+4DBF 或 U+7000+) 大概率是乱码
-        if 0x3400 <= code <= 0x4DBF or code >= 0x7000:
-            rare += 1
-    return rare > max(1, len(text) * 0.2)  # 超过20%的生僻字视为乱码
+        # 排除 CJK 基本区 (U+4E00–U+9FFF) — 常用汉字
+        if 0x4E00 <= code <= 0x9FFF:
+            continue
+        # 排除 CJK 扩展 A 区 (U+3400–U+4DBF) — 仍属正常汉字
+        if 0x3400 <= code <= 0x4DBF:
+            continue
+        # 排除基本 ASCII 和常见符号
+        if code <= 0x007E:
+            continue
+        # 排除全角标点 (U+FF00–U+FFEF)
+        if 0xFF00 <= code <= 0xFFEF:
+            continue
+        # 排除 CJK 兼容区 (U+F900–U+FAFF)
+        if 0xF900 <= code <= 0xFAFF:
+            continue
+        # 排除常用 Unicode 符号区 (U+2000–U+27FF)
+        if 0x2000 <= code <= 0x27FF:
+            continue
+        # 剩余字符视为可疑（PUA、增补汉字、emoji 等）
+        rare += 1
+    # 超过 30% 的可疑字符视为乱码（放宽阈值，避免误杀常用字）
+    return rare > max(2, len(text) * 0.3)
+
+
+# 标准文档封面常见的机构抬头（含空格展开的变体），不应被当作标准名
+_BOILERPLATE_PATTERNS = [
+    '中华人民共和国国家标准', '中华人民共和国国家军用标准',
+    '中国人民解放军海军标准', '国家市场监督管理总局',
+    '中国国家标准化管理委员会', '中华人民共和国国家质量监督检验检疫总局',
+    '中国标准出版社', '全国标准化技术委员会',
+]
+
+
+def _is_boilerplate(text: str) -> bool:
+    """检测文本是否为标准封面机构抬头（含 PDF/OCR 导致的字符错误）"""
+    compact = re.sub(r'\s+', '', text)
+    for bp in _BOILERPLATE_PATTERNS:
+        if compact == bp or compact.startswith(bp):
+            return True
+        # 模糊匹配：至少 80% 字符相同（容忍 OCR 错字如"国宾"→"国家标准"）
+        if len(compact) >= 8 and len(bp) >= 8:
+            common = sum(1 for a, b in zip(compact, bp) if a == b)
+            if common / max(len(compact), len(bp)) >= 0.7:
+                return True
+    return False
+
+
+def _is_cid_garbled(text: str) -> bool:
+    """检测文本是否疑似 CID 字体映射乱码"""
+    if not text or len(text) < 10:
+        return False
+    pua = 0
+    ascii_symbols = 0
+    cjk = 0
+    total = len(text)
+    for ch in text:
+        code = ord(ch)
+        if 0xE000 <= code <= 0xF8FF:
+            pua += 1
+        if 0x21 <= code <= 0x2F or 0x3A <= code <= 0x40 or 0x5B <= code <= 0x60 or 0x7B <= code <= 0x7E:
+            ascii_symbols += 1
+        if 0x4E00 <= code <= 0x9FFF:
+            cjk += 1
+    # PUA 字符：一个就算
+    if pua > 0:
+        return True
+    # ASCII 符号密集 + 几乎没有 CJK → CID 符号乱码
+    if total > 100 and ascii_symbols > total * 0.35 and cjk < total * 0.15:
+        return True
+    return False
 
 
 def _extract_standard_name(text: str, header: str, std_number: str) -> str:
     """从文档头部提取标准名称"""
+    # 扩大搜索范围到前 3000 字
+    search_text = text[:3000]
+
     # 策略1: 标准编号后面紧跟的中文标题
     if std_number:
-        # 直接在header中找编号的位置
-        idx = header.find(std_number)
-        if idx >= 0:
-            # 编号之后的内容
-            after = header[idx + len(std_number):].strip()
-            # 提取中文标题: 编号后的中文文字，遇到大写英文或行尾停止
-            m = re.match(r'([一-鿿（(][一-鿿（）()《》、，。；;：:！!？?/+\-—– 　]{3,80}?)(?:\s*[A-Z][a-z]|\s*\n|\s*$)', after)
+        # 尝试多种编号写法（有/无空格、hyphen/em dash、全角符号）
+        variants = [
+            std_number,
+            std_number.replace(' ', ''),
+            std_number.replace('-', '—'),
+            std_number.replace('-', '—').replace(' ', ''),
+            std_number.replace('-', '一'),
+            std_number.replace('-', ' 一 '),
+            std_number.replace('-', '一').replace(' ', ''),
+            std_number.replace('/', '／'),
+        ]
+        for variant in variants:
+            idx = search_text.find(variant)
+            if idx < 0:
+                continue
+            after = search_text[idx + len(variant):]
+            # 跳过编号后的短分隔符
+            after = re.sub(r'^[\s\-–—：:】〕〗\n\r,，]{1,10}', '', after)
+            # 跳过"代替"行（OCR 可能带空格：代 替）
+            after = re.sub(r'^代\s*替[^\n]*\n?', '', after)
+            after = re.sub(r'^[，,\n\r]{1,4}', '', after)
+            after = after.strip()
+            # 提取标题：中文/数字开头，支持多行和英文字母（标准号内），遇到纯英文行或空行停止
+            m = re.match(
+                r'([一-鿿（(0-9０-９]'
+                r'[一-鿿（）()《》、，。；;：:！!？?0-9０-９A-Za-z/+\-—– 　·ＩＣＳＣ\n\r]{3,150}?)'
+                r'(?:\s{2,}|\s*\n\s*\n|\s*\n[A-Z][a-z]{2,}|\s*[A-Z]{4,}|\s*$)',
+                after
+            )
             if m:
                 name = m.group(1).strip()
-                # 去掉尾部英文
-                name = re.sub(r'\s+[A-Za-z].*$', '', name).strip()
-                if len(name) >= 4 and not _looks_garbled(name):
+                # 去掉尾部英文行
+                name = re.sub(r'\n[A-Za-z].*$', '', name, flags=re.DOTALL)
+                name = name.strip()
+                # 压缩内部单换行（跨行标题合并），保留双换行
+                name = re.sub(r'(?<!\n)\n(?!\n)', '', name)
+                # 压缩字符间多余空格（PDF 排版 artifact）
+                name = re.sub(r'([第])\s+', r'\1', name)
+                # 合并孤立数字到"第x部分"结构中：如 "第部分 船舶8" → "第8部分 船舶"
+                name = re.sub(r'第部分\s+(.+?)(\d)', r'第\2部分 \1', name)
+                # 清理尾部残留符号和空格
+                name = re.sub(r'[：:—–\s\d]+$', '', name)
+                name = re.sub(r'[!！]{2,}', '', name)
+                name = re.sub(r'\s*!\s*', '', name)
+                name = name.strip()
+                if len(name) >= 4 and not _looks_garbled(name) and not _is_boilerplate(name) and not _is_cid_garbled(name):
                     return name
 
-    # 策略2: header中找独立中文长标题行
-    for line in header.split('\n')[:30]:
+    # 策略2: 在前 1500 字内找独立中文标题行
+    for line in search_text[:1500].split('\n')[:40]:
         line = line.strip()
-        # 纯中文开头，5-100字，排除前言/引用等
+        if not re.match(r'^[一-鿿（(]', line):
+            continue
+        # 去掉字符间空格（PDF 排版展开）
+        line_compact = re.sub(r'\s+', '', line)
+        if len(line_compact) < 5 or len(line_compact) > 120:
+            continue
+        if _looks_garbled(line) or _is_boilerplate(line) or _is_cid_garbled(line):
+            continue
+        # 排除非标题行（无论长度）
         skip_words = ['前言', '目录', '范围', '引用', '术语', '附录', '本标', '本规',
-                      '根据', '依据', '参照', '参见', '中国', '海军标', '国家军']
-        if (re.match(r'^[一-鿿（(]', line)
-                and 5 <= len(line) <= 100
-                and not any(line.startswith(w) for w in skip_words)
-                and '依据' not in line[:10] and '根据' not in line[:10]
-                and not _looks_garbled(line)):
-            return line
+                      '根据', '依据', '参照', '参见', '中国', '海军标', '国家军', '归口',
+                      'ICS', 'CCS', '代替', '目次']
+        if any(line_compact.startswith(w) for w in skip_words):
+            continue
+        if '依据' in line_compact[:10] or '根据' in line_compact[:10]:
+            continue
+        # ≥10 个实际字符的行大概率是标题
+        if len(line_compact) >= 10:
+            return line_compact
+        # 短文直接返回
+        return line_compact
 
     # 策略3: 标签提取
-    m = re.search(r'(?:标准名称|名称)[：:]\s*(.+?)(?:\n|$)', text[:1000])
+    m = re.search(r'(?:标准名称|名称|文件名称|标准)[：:]\s*(.+?)(?:\n|$)', text[:2000])
     if m:
-        return m.group(1).strip()
+        name = m.group(1).strip()
+        if len(name) >= 4 and not _looks_garbled(name) and not _is_boilerplate(name) and not _is_cid_garbled(name):
+            return name
 
     return ""
 
@@ -245,7 +434,7 @@ def _extract_dates(text: str):
     implement_date = None
 
     # 优先匹配标准封面格式: 2025-03-01 发布  2025-06-01 实施
-    m = re.search(r'(\d{4}[—\-–]\d{1,2}[—\-–]\d{1,2})\s*[发布颁].*?(\d{4}[—\-–]\d{1,2}[—\-–]\d{1,2})\s*[实施执行]', text)
+    m = re.search(r'(\d{4}[—\-–一]\d{1,2}[—\-–一]\d{1,2})\s*[发布颁].*?(\d{4}[—\-–一]\d{1,2}[—\-–一]\d{1,2})\s*[实施执行]', text)
     if m:
         publish_date = parse_date(m.group(1))
         implement_date = parse_date(m.group(2))

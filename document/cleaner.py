@@ -47,6 +47,8 @@ def remove_headers_footers(text: str) -> str:
     header_footer_candidates = {
         line for line, count in line_counts.items()
         if count >= threshold and len(line) < 100
+        and not re.match(r'^[A-Z]{2,6}(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?\s*[—\-–]\s*\d{2,4}$', line)
+        and not re.match(r'^[A-Z]{2,6}(?:/[A-Z])?\s*\d+(?:\.\d+)?[A-Za-z]?$', line)
     }
 
     cleaned_lines = []
@@ -61,7 +63,7 @@ def remove_headers_footers(text: str) -> str:
 def remove_page_numbers(text: str) -> str:
     """移除独立页码行"""
     patterns = [
-        r'^\s*[-–—]?\s*\d{1,4}\s*[-–—]?\s*$',  # 纯数字页码
+        r'^\s*[-–—]?\s*\d{2,4}\s*[-–—]?\s*$',  # 纯数字页码（至少2位，避免误删章节号如"8"）
         r'^\s*第\s*\d+\s*页\s*(共\s*\d+\s*页)?\s*$',  # "第X页" / "第X页 共Y页"
         r'^\s*page\s*\d+\s*(of\s*\d+)?\s*$',  # 英文页码
     ]
@@ -140,14 +142,16 @@ def remove_short_lines(text: str, min_len: int = 3) -> str:
     cleaned = []
     for line in lines:
         stripped = line.strip()
-        # 保留标题类短行（以#开头或以序号开头）
+        # 保留标题类短行（#开头、序号开头、"第"开头、独立数字/字母）
         if len(stripped) < min_len and not (
             stripped.startswith("#") or
             re.match(r'^[\d一二三四五六七八九十]+[、.．]', stripped) or
-            stripped.startswith("第")
+            stripped.startswith("第") or
+            re.match(r'^[A-Za-z]{1,6}$', stripped) or
+            re.match(r'^\d{1,2}$', stripped)  # 独立的1-2位数字通常是章节号（如"8"）
         ):
-            # 检查是否纯数字或纯标点
-            if re.match(r'^[\d\s\.,;:!?，。；：！？…\-\—]+$', stripped):
+            # 检查是否纯标点/分隔符
+            if re.match(r'^[\s\.,;:!?，。；：！？…\-\—\|/\\*#~+=\^\[\]{}()（）〈〉《》]+$', stripped):
                 continue
         cleaned.append(line)
     return "\n".join(cleaned)
