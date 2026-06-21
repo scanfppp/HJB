@@ -30,4 +30,4 @@ COPY . .
 EXPOSE 8501
 
 # 启动命令
-CMD ["python", "backend_api.py"]
+CMD ["python", "src/main.py"]

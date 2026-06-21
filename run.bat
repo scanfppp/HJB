@@ -21,6 +21,7 @@ timeout /t 3 /nobreak >nul
 
 REM 初始化数据库
 echo 正在初始化数据库表...
+set PYTHONPATH=%CD%\src;%PYTHONPATH%
 python -c "from database.schema import init_db; print('数据库初始化完成' if init_db() else '数据库初始化失败')"
 
 REM 启动 FastAPI 服务
@@ -32,4 +33,4 @@ echo   按 Ctrl+C 停止应用
 echo ============================================================
 timeout /t 2 /nobreak >nul
 
-python backend_api.py
+python src/main.py

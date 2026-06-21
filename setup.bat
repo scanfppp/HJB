@@ -83,7 +83,7 @@ echo   初始化完成！
 echo.
 echo   后续步骤：
 echo   1. 启动 pgvector 容器: docker-compose up -d
-echo   2. 初始化数据库:   python -c "from database.schema import init_db; init_db()"
-echo   3. 启动应用:       python backend_api.py
+echo   2. 初始化数据库:   set PYTHONPATH=%%CD%%\src;%%PYTHONPATH%% ^& python -c "from database.schema import init_db; init_db()"
+echo   3. 启动应用:       python src/main.py
 echo ============================================================
 pause

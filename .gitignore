@@ -19,10 +19,9 @@ venv/
 *.swo
 
 # Models (large binary files)
-navy_rag/models/
+models/
 
 # Data
-navy_rag/data/
 data/uploads/*
 data/tessdata/*
 !data/uploads/.gitkeep
@@ -30,9 +29,6 @@ data/tessdata/*
 
 # Logs
 logs/*
-
-# Streamlit
-.streamlit/
 
 # OS
 .DS_Store
