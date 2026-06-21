@@ -35,3 +35,4 @@ logs/*
 .DS_Store
 Thumbs.db
 *.docx
+!docs/CS599_大作业报告.docx
